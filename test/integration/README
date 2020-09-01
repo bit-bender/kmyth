@@ -1,0 +1,52 @@
+This directory contains the scripts and test data supporting a simple
+set of integration tests.
+
+Directory Contents:
+
+    README              - this README text file
+
+    cert                - directory containing test certificate (.pem) files
+
+    key                 - directory containing test key files
+
+    ski                 - directory to hold test .ski files (produced by
+                          kmyth-seal and used by kmyth-unseal and kmyth-getkey) 
+
+    testrunner.py       - Python script implementing integration tests.
+
+    sampleTestServer.py - Python script implementing sample test server
+
+The integration tests must be invoked from the kmyth root directory (../..)
+by invoking either:
+
+    make integration-test
+
+or
+
+    ./test/integration/testrunner.py
+
+In order to support some basic testing, an implementation of a very simple
+server, written in Python, is included.  This is provided for research and
+testing purposes only and is not considered suitable for operational use.
+
+This server accepts TLS connections and provides a hard-coded,
+fixed 256-bit byte array over a TLS socket to clients that connect.
+
+The server has been setup so that it can be invoked as a daemon. When started,
+it will serve the fixed 256-bit byte array forever, until stopped.
+  
+Starting and Stopping the Sample Test Server independently:
+
+    The sample test server can be started by running (in kmyth root directory):
+
+        ./test/integration/sampleTestServer.py start &
+
+
+    Similarly, the sample test server can be stopped with:
+
+        ./test/integration/sampleTestServer.py stop
+
+Running the sample test server in this fashion, it will listen at the localhost
+(127.0.0.1) address on ephemeral port 54321. The port setting can be
+re-configured by editing the sampleTestServer.py script.
+
