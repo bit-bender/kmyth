@@ -224,6 +224,9 @@ def integration_test_init(verbose_flag):
     if verbose_flag:
         print('Kmyth Integration Tests: initialization')
 
+    # Generate test keys / certificates to be used for testing
+    # < call test key setup script here >
+ 
     # Check process list for TCTI type parameter passed to resource manager
     # (tpm2-abrmd) call. The TCTI type should be 'mssim' if the simulator is
     # being used. The tpm_simulator flag value is used to store the result.
@@ -259,7 +262,6 @@ def integration_test_init(verbose_flag):
                                                             stderr=subprocess.DEVNULL)
         if verbose_flag:
             print('  started sample test server ...')
-
 
 #-----------------------------------------------------------------------------
 # Integration Test Cleanup
