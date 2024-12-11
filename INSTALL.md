@@ -239,7 +239,7 @@ $ git clone https://github.com/tpm2-software/tpm2-tools.git
 $ cd tpm2-tools
 ```
 
-2. Install dependencies by using the existing upsream ```tpm2-tools``` package.
+2. Install dependencies by using the existing upstream ```tpm2-tools``` package.
 
 ```
 $ sudo dnf builddep tpm2-tools
@@ -251,15 +251,7 @@ $ sudo dnf builddep tpm2-tools
 $ sudo yum -y install automake libtool autoconf autoconf-archive libstdc++-devel gcc pkg-config uriparser-devel libgcrypt-devel dbus-devel glib2-devel libcurl-devel libuuid-devel
 ```
 
-4. Run the ```bootstrg
-e
-m
-m
-m
-s
-s
-s
-map``` and ```configure``` scripts. You may need to change the ```PKG_CONFIG_PATH``` configuration value for your system.
+4. Run the ```bootstrap``` and ```configure``` scripts. You may need to change the ```PKG_CONFIG_PATH``` configuration value for your system.
 
 ```
 $ ./bootstrap
