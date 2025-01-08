@@ -60,7 +60,7 @@ static void proxy_usage(const char *prog)
     "options are:\n\n"
     "ECDH Connection Information --\n"
     "  -p or --ecdh-server-port  port number proxy will listen on for\n"
-    "                            ECDH connections.\n"
+    "                            ECDH client connections\n"
     "  -k or --ecdh-server-key   private key PEM file name for proxy's\n"
     "                            ECDH server role\n"
     "  -c or --ecdh-server-cert  X509 certificate PEM file name for\n"

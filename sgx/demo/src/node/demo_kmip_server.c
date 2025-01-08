@@ -178,7 +178,7 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   if (port_string == NULL)
   {
-    fprintf(stderr, "network port (server listen) argument required");
+    fprintf(stderr, "server port (-p) argument required");
     invalid_options = true;
   }
   else
