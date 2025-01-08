@@ -116,7 +116,7 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
       ret = demo_ecdh_load_local_sign_cert(&(proxy->ecdhconn), optarg);
       if (ret != EXIT_SUCCESS)
       {
-        fprintf(stdout, "invalid ECDH server certificate path: %s\n", optarg);
+        fprintf(stderr, "invalid ECDH server certificate path: %s\n", optarg);
         exit(EXIT_FAILURE);
       }
       break;
@@ -131,74 +131,48 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
       ret = demo_ecdh_load_local_sign_key(&(proxy->ecdhconn), optarg);
       if (ret != EXIT_SUCCESS)
       {
-        fprintf(stdout, "invalid ECDH server signature key path: %s\n", optarg);
+        fprintf(stderr, "invalid ECDH server signature key path: %s\n", optarg);
         exit(EXIT_FAILURE);
       }
       break;
     // set session count limit for proxy (default is unlimited)
     case 'm':
       proxy->ecdhconn.config.session_limit = atoi(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: proxy session limit = %d",
-                proxy->ecdhconn.config.session_limit);
       break;
     // configure port string for proxy's ECDH interface
     case 'p':
       proxy->ecdhconn.config.port = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: ECDH interface port = %s",
-                proxy->ecdhconn.config.port);
       break;
     // load public certificate for remote ECDH client (local verify key)
     case 'u':
       ret = demo_ecdh_load_remote_sign_cert(&(proxy->ecdhconn), optarg);
       if (ret != EXIT_SUCCESS)
       {
-        fprintf(stdout,
-                "invalid remote (ECDH client) certificate path: %s\n",
-                optarg);
+        fprintf(stderr, "invalid ECDH remote client cert path: %s\n", optarg);
         exit(EXIT_FAILURE);
       }
       break;
      // configure file name for Certificate Authority (CA) certificate
      case 'C':
       proxy->tlsconn.ca_cert_path = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: CA certificate path = %s",
-                proxy->tlsconn.ca_cert_path);
       break;
-    // configure TLS server host string
+    // configure TLS remote server host name/IP string
     case 'I':
       proxy->tlsconn.remote_host = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: TLS (remote server) host = %s",
-                proxy->tlsconn.remote_host);
       break;
     // configure SAN for remote server certificate validation
     case 'N':
       proxy->tlsconn.remote_san = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: TLS (remote server) SAN = %s",
-                proxy->tlsconn.remote_san);
       break;
     // configure port string for proxy's TLS interface
     case 'P':
       proxy->tlsconn.conn_port = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: ECDH interface port = %s",
-                proxy->tlsconn.conn_port);
       break;
     case 'R':
       proxy->tlsconn.local_key_path = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: TLS (local client) private key path = %s",
-                proxy->tlsconn.local_key_path);
       break;
     case 'U':
       proxy->tlsconn.local_cert_path = strdup(optarg);
-      kmyth_log(LOG_DEBUG,
-                "option: TLS (local client) public cert path = %s",
-                proxy->tlsconn.local_cert_path);
       break;
     default:
       proxy_error(proxy);
@@ -217,26 +191,19 @@ static void proxy_check_options(TLSProxy * proxy)
 
   if (proxy->tlsconn.remote_host == NULL)
   {
-    kmyth_log(LOG_ERR, "remote server host string (-I) is required");
+    fprintf(stderr, "missing remote server host name/IP string (-I) option");
     err = true;
   }
 
   if (proxy->tlsconn.conn_port == NULL)
   {
-    kmyth_log(LOG_ERR, "TLS connection port number argument (-P) is required");
+    fprintf(stderr, "missing TLS connection port number (-P) argument");
     err = true;
   }
 
   if (err)
   {
     proxy_error(proxy);
-  }
-
-  // default remote certificate "name" criteria (if not specified by user)
-  if (proxy->tlsconn.remote_san == NULL)
-  {
-    proxy->tlsconn.remote_san = proxy->tlsconn.remote_host;
-    kmyth_log(LOG_DEBUG, "no SAN specified for remote host");
   }
 }
 
@@ -635,11 +602,9 @@ int main(int argc, char **argv)
   set_applog_severity_threshold(DEMO_LOG_LEVEL);
   set_applog_output_mode(0);
 
-  kmyth_log(LOG_DEBUG, "starting proxy ...");
-
   proxy_init(&proxy);
 
-  // apply and validate command-line options
+  // parse and validate command-line options
   proxy_get_options(&proxy, argc, argv);
   proxy_check_options(&proxy);
 
@@ -649,7 +614,6 @@ int main(int argc, char **argv)
     kmyth_log(LOG_ERR, "failed to setup proxy's TLS client interface");
     proxy_error(&proxy);
   }
-  kmyth_log(LOG_DEBUG, "finished setting up proxy's TLS client interface");
 
   // setup proxy's ECDH server interface
   if (EXIT_SUCCESS != proxy_create_ecdh_server(&proxy))

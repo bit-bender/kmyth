@@ -158,7 +158,7 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   if (server_key_path == NULL)
   {
-    kmyth_log(LOG_ERR, "path for server's private key required");
+    fprintf(stderr, "path for server's private key (-k) option required");
     invalid_options = true;
   }
   else
@@ -168,7 +168,7 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   if (server_cert_path == NULL)
   {
-    kmyth_log(LOG_ERR, "path for server's public certificate required");
+    fprintf(stderr, "path for server's public cert (-c) option required");
     invalid_options = true;
   }
   else
@@ -178,7 +178,7 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   if (port_string == NULL)
   {
-    kmyth_log(LOG_ERR, "network port (server listen) argument required");
+    fprintf(stderr, "network port (server listen) argument required");
     invalid_options = true;
   }
   else
