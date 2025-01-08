@@ -265,13 +265,18 @@ int demo_tls_config_client_connect(TLSPeer * tls_clnt)
       log_openssl_error("BIO_get_ssl()");
       return -1;
     }
- 
+
+    // check only against certificate SAN values (not CN/DN) 
     SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
+
+    // replace any existing critera with user supplied SAN
+    //   Note: SSL_add1_host() would have appended as additional criteria
     if (1 != SSL_set1_host(ssl, tls_clnt->remote_san))
     {
       log_openssl_error("SSL_set1_host()");
       return -1;
     }
+
     kmyth_log(LOG_DEBUG, "set remote server SAN = %s", tls_clnt->remote_san);
   }
 
@@ -308,12 +313,17 @@ int demo_tls_config_server_accept(TLSPeer * tls_svr)
   // remote client, configure its use it for certificate verification
   if (tls_svr->remote_san != NULL)
   {
+    // check only against certificate SAN values (not CN/DN) 
     SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
+
+    // replace any existing critera with user supplied SAN
+    //   Note: SSL_add1_host() would have appended as additional criteria
     if (1 != SSL_set1_host(ssl, tls_svr->remote_san))
     {
       log_openssl_error("SSL_set1_host()");
       return -1;
     }
+
     kmyth_log(LOG_DEBUG, "set remote client SAN = %s", tls_svr->remote_san);
   }
 
