@@ -61,7 +61,7 @@ int setup_client_socket(const char *node, const char *service, int *socket_fd)
     close(*socket_fd);
     if (rp->ai_next == NULL)
     {
-      kmyth_log(LOG_DEBUG, "no more addresses to try");
+      kmyth_log(LOG_DEBUG, "socket setup: no more addresses to try");
     }
   }
 
