@@ -44,7 +44,7 @@ CN                      = "TestProxy"
 [ dn_server ]
 C                       = "US"
 O                       = "kmyth"
-CN                      = "TestServer"
+CN                      = "DemoServer"
 
 [ v3_ext_ca ]
 subjectKeyIdentifier    = hash
@@ -68,7 +68,7 @@ basicConstraints        = CA:false
 
 [ alt_names_client ]
 IP.0                    = 127.0.0.1
-DNS.0                   = localhost.enclaveAppClient
+DNS.0                   = localhost.enclave
 
 [ alt_names_proxy ]
 IP.0                    = 127.0.0.1
@@ -76,4 +76,4 @@ DNS.0                   = localhost.proxy
 
 [ alt_names_server ]
 IP.0                    = 127.0.0.1
-DNS.0                   = localhost.demoServer 
+DNS.0                   = localhost.server 

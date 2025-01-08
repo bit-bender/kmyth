@@ -54,6 +54,7 @@ static const struct option demo_kmip_server_longopts[] = {
   // TLS connection info
   {"server-key", required_argument, 0, 'k'},
   {"server-cert", required_argument, 0, 'c'},
+  {"client-san", required_argument, 0, 'N'},
   {"ca-cert", required_argument, 0, 'C'},
   // network options
   {"port", required_argument, 0, 'p'},

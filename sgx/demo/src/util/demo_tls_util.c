@@ -34,16 +34,16 @@ void demo_tls_cleanup(TLSPeer * tlsconn)
     SSL_CTX_free(tlsconn->ctx);
   }
 
-  // clean up 'host' / 'IP' string for TLS interface
-  if (tlsconn->remote_server != NULL)
+  // clean up 'host' (hostname or IP) string for TLS interface
+  if (tlsconn->remote_host != NULL)
   {
-    free(tlsconn->remote_server);
+    free(tlsconn->remote_host);
   }
   
-  // clean up 'name' string for TLS interface
-  if (tlsconn->remote_server_func != NULL)
+  // clean up Subject Alternative Name (SAN) string for remote TLS host
+  if (tlsconn->remote_san != NULL)
   {
-    free(tlsconn->remote_server_func);
+    free(tlsconn->remote_san);
   }
 
   // clean up 'port' string for TLS interface
@@ -222,8 +222,6 @@ int demo_tls_config_ctx(TLSPeer * tlsconn)
  ****************************************************************************/
 int demo_tls_config_client_connect(TLSPeer * tls_clnt)
 {
-  kmyth_log(LOG_DEBUG, "tls_config_client_connect()");
-
   // verify that this configuration is correctly for a client connection
   if (!tls_clnt->isClient)
   {
@@ -247,71 +245,35 @@ int demo_tls_config_client_connect(TLSPeer * tls_clnt)
   }
 
   // configure server hostname settings
-  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_server))
+  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_host))
   {
     log_openssl_error("BIO_set_conn_hostname()");
     return -1;
   }
 
-  // obtain SSL BIO pointer for the TLS client BIO chain
-  SSL *ssl = NULL;
+ 
+  // if the user supplies a Subject Alternative Name (SAN) for the
+  // remote server, configure its use for certificate verification
+  if (tls_clnt->remote_san != NULL)
+  {
+    // obtain SSL BIO pointer for the TLS client BIO chain
+    SSL *ssl = NULL;
 
-  BIO_get_ssl(tls_clnt->bio, &ssl);  // internal pointer, not a new allocation
-  if (ssl == NULL)
-  {
-    log_openssl_error("BIO_get_ssl()");
-    return -1;
+    BIO_get_ssl(tls_clnt->bio, &ssl);  // internal pointer, not a new allocation
+    if (ssl == NULL)
+    {
+      log_openssl_error("BIO_get_ssl()");
+      return -1;
+    }
+ 
+    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
+    if (1 != SSL_set1_host(ssl, tls_clnt->remote_san))
+    {
+      log_openssl_error("SSL_set1_host()");
+      return -1;
+    }
+    kmyth_log(LOG_DEBUG, "set remote server SAN = %s", tls_clnt->remote_san);
   }
-
-  // compute expected server name (as specified in server's cert)
-  //   - expected to be <IP address or hostname string>.<name string>
-  //     (e.g., localhost.demoServer, 127.0.0.1.server, ...)
-  char * server_name = NULL;
-  size_t server_name_size = strlen(tls_clnt->remote_server) + 1;
-  if (tls_clnt->remote_server_func != NULL)
-  {
-    server_name_size += (strlen(tls_clnt->remote_server_func) + 1);
-  }
-  server_name = calloc(server_name_size, sizeof(char));
-  int bytes_needed = 0;
-  if (tls_clnt->remote_server_func == NULL)
-  {
-    bytes_needed = snprintf(server_name,
-                            server_name_size,
-                            "%s",
-                            tls_clnt->remote_server);
-  }
-  else
-  {
-    bytes_needed = snprintf(server_name,
-                            server_name_size,
-                            "%s.%s",
-                            tls_clnt->remote_server,
-                            tls_clnt->remote_server_func);
-  }
-  if (bytes_needed < 0)
-  {
-    kmyth_log(LOG_ERR, "error creating server certificate verification name");
-    free(server_name);
-    return -1;
-  }
-  if ((size_t) bytes_needed > server_name_size)
-  {
-    kmyth_log(LOG_ERR, "truncated server certificate verification name");
-    free(server_name);
-    return -1;
-  }
-
-  // set host name for server certificate verification
-  if (1 != SSL_set1_host(ssl, server_name))
-  {
-    log_openssl_error("SSL_set1_host()");
-    free(server_name);
-    return -1;
-  }
-  kmyth_log(LOG_DEBUG, "name for server cert verification: %s", server_name);
-
-  free(server_name);
 
   return 0;
 }
@@ -342,7 +304,20 @@ int demo_tls_config_server_accept(TLSPeer * tls_svr)
   // set read/write operations to only return after successful handshake
   SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
-  // creates new accept BIO to accept client connection to the server
+  // if the user supplies a Subject Alternative Name (SAN) for the
+  // remote client, configure its use it for certificate verification
+  if (tls_svr->remote_san != NULL)
+  {
+    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
+    if (1 != SSL_set1_host(ssl, tls_svr->remote_san))
+    {
+      log_openssl_error("SSL_set1_host()");
+      return -1;
+    }
+    kmyth_log(LOG_DEBUG, "set remote client SAN = %s", tls_svr->remote_san);
+  }
+
+  // create new accept BIO to accept client connection to the server
   BIO *abio = BIO_new_accept(tls_svr->conn_port);
   if (abio == NULL)
   {

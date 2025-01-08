@@ -400,9 +400,10 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	@$(CURDIR)/$(Server_Name) -k demo/data/server_priv.pem \
 	                          -c demo/data/server_cert.pem \
 	                          -C demo/data/ca_cert.pem \
+							  -N localhost.proxy \
 	                          -p 7001 &
 	@sleep 1
-	@$(CURDIR)/$(Proxy_Name) -r demo/data/proxy_priv.pem \
+	@$(CURDIR)/$(Proxy_Name) -k demo/data/proxy_priv.pem \
 	                         -c demo/data/proxy_cert.pem \
 	                         -u demo/data/client_cert.pem \
 	                         -p 7000 \
@@ -410,7 +411,7 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	                         -U demo/data/proxy_cert.pem \
 	                         -C demo/data/ca_cert.pem \
 	                         -I localhost \
-	                         -N demoServer \
+	                         -N localhost.server \
 	                         -P 7001 \
 	                         -m 1 &
 	@sleep 1

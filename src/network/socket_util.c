@@ -2,6 +2,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <errno.h>
 
 #include "defines.h"
 
@@ -27,7 +31,7 @@ int setup_client_socket(const char *node, const char *service, int *socket_fd)
   if (s != 0)
   {
     kmyth_log(LOG_ERR, "Failed to lookup target Internet address: %s",
-              gai_strerror(s));
+                       gai_strerror(s));
     return 1;
   }
 
@@ -35,25 +39,37 @@ int setup_client_socket(const char *node, const char *service, int *socket_fd)
   // right one.
   for (rp = result; rp != NULL; rp = rp->ai_next)
   {
+    char ipstr[INET_ADDRSTRLEN];
+    struct sockaddr_in *sa = (struct sockaddr_in *)rp->ai_addr;
+    void *addr = &(sa->sin_addr);
+    inet_ntop(rp->ai_family, addr, ipstr, sizeof(ipstr));
     *socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (*socket_fd == -1)
     {
       // Socket creation failed, try the next address.
+      kmyth_log(LOG_DEBUG, "socket creation failed (%s)", ipstr);
       continue;
     }
+    kmyth_log(LOG_DEBUG, "socket creation succeeded (%s)", ipstr);
     if (connect(*socket_fd, rp->ai_addr, rp->ai_addrlen) != -1)
     {
       // Socket connection succeeded, use this socket.
+      kmyth_log(LOG_DEBUG, "socket connection succeeded");
       break;
     }
+    kmyth_log(LOG_DEBUG, "socket connect: %s", strerror(errno));
     close(*socket_fd);
+    if (rp->ai_next == NULL)
+    {
+      kmyth_log(LOG_DEBUG, "no more addresses to try");
+    }
   }
 
   // Cleanup address information and handle errors.
   freeaddrinfo(result);
   if (rp == NULL)
   {
-    kmyth_log(LOG_ERR, "Failed to establish socket connection.");
+    kmyth_log(LOG_ERR, "failed to establish socket connection");
     return 1;
   }
 

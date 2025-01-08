@@ -59,33 +59,31 @@ static void proxy_usage(const char *prog)
     "\nusage: %s [options]\n\n"
     "options are:\n\n"
     "ECDH Connection Information --\n"
-    "  -p or --local-port      The port number to listen on for ECDH connections.\n"
-    "  -r or --private         Local private key PEM file used for ECDH connections.\n"
-    "  -u or --public          Remote public cert PEM file used to validate ECDH connections.\n"
+    "  -p or --ecdh-server-port  port number proxy will listen on for\n"
+    "                            ECDH connections.\n"
+    "  -k or --ecdh-server-key   private key PEM file name for proxy's\n"
+    "                            ECDH server role\n"
+    "  -c or --ecdh-server-cert  X509 certificate PEM file name for\n"
+    "                            proxy's ECDH server role"
+    "  -u or --ecdh-client-cert  X509 public cert PEM file name for\n"
+    "                            ECDH client connecting to proxy\n"
     "TLS Connection Information --\n"
-    "  -I or --remote-ip       The IP address or hostname of the remote server\n"
-    "                          (i.e., address/name used for network connection)\n"
-    "  -N or --remote-name     In some cases, the server that the proxy connects to may\n"
-    "                          reside on the same network node. In order to better\n"
-    "                          differentiate endpoints, an additional 'functional name'\n"
-    "                          can be specified for the remote server. This proxy\n"
-    "                          implements the convention of concatenating the network\n"
-    "                          address/name with this 'functional name' using a 'dot'\n"
-    "                          delimiter (<IP address or hostname>.<functional name>)\n"
-    "                          and using that extended name for certificate validation.\n"
-    "                          If no 'functional name' is specified, the address/name\n"
-    "                          value specified with the '-I' (--remote-ip) option is used\n"
-    "                          directly for server certificate verification.\n"
-    "                            Note: the remote server's certificate must use, or\n"
-    "                                  define as a Subject Alternate Name (SAN), the\n"
-    "                                  configured certificate verification name\n"
-    "  -P or --remote-port     The port number to use when connecting to the remote server\n"
-    "  -C or --ca-path         Optional CA certificate file used to verify the remote server\n"
-    "                          (if not specified, the default system CA chain will be used instead)\n"
-    "  -R or --client-key      Local (client) private key (for TLS connection) PEM file name\n"
-    "  -U or --client-cert     Local (client) certificate (for TLS connection) PEM file name\n"
+    "  -I or --tls-server-host   network name (IP address or hostname) of\n"
+    "                            the remote server for the TLS connection\n"
+    "  -N or --tls-server-san    Subject Alternative Name (SAN) expected in\n"
+    "                            received remote server's certificate. If\n"
+    "                            this option is not specified, the host\n"
+    "                            (network) name will be used for certificate\n"
+    "                            verification as the default behavior.\n"
+    "  -P or --tls-server-port   port number to use when connecting to the remote TLS server\n"
+    "  -R or --tls_client-key    private key PEM file name for proxy's TLS client role\n"
+    "  -U or --tls-client-cert   X509 certificate PEM file name for proxy's TLS client role\n"
+    "Certificate Authority (CA) Information --\n"
+    "  -C or --ca-path           CA certificate file used to verify the remote TLS server\n"
+    "                            (if not specified, the default system CA chain will be used instead)\n"
     "Test Options --\n"
-    "  -m or --maxconn  The number of connections the server will accept before exiting (unlimited by default, or if the value is not a positive integer).\n"
+    "  -m or --maxconn           number of connections the server will accept before exiting\n"
+    "                            (unlimited by default, or if the value is not a positive integer)\n"
     "Misc --\n"
     "  -h or --help     Help (displays this usage).\n\n", prog);
 }
@@ -108,72 +106,100 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
   int option_index = 0;
 
   while ((options =
-          getopt_long(argc, argv, "r:c:u:p:I:N:P:C:R:U:m:h",
+          getopt_long(argc, argv, "c:h:k:m:p:u:C:I:N:P:R:U:",
                       proxy_longopts, &option_index)) != -1)
   {
     switch (options)
-    {
-    // Key files
-    case 'r':
-      // load proxy (server) key needed to sign messages of server-side origin
-      ret = demo_ecdh_load_local_sign_key(&(proxy->ecdhconn), optarg);
-      if (ret != EXIT_SUCCESS)
-      {
-        fprintf(stdout, "invalid local signature key path: %s\n", optarg);
-        exit(EXIT_FAILURE);
-      }
-      break;
+   {
+    //  load public certificate for proxy's ECDH server role (remote verify key)
     case 'c':
-      // load proxy (server) certificate containing proxy identity information
       ret = demo_ecdh_load_local_sign_cert(&(proxy->ecdhconn), optarg);
       if (ret != EXIT_SUCCESS)
       {
-        fprintf(stdout, "invalid local certificate path: %s\n", optarg);
+        fprintf(stdout, "invalid ECDH server certificate path: %s\n", optarg);
         exit(EXIT_FAILURE);
       }
       break;
-    case 'u':
-      // load client certificate containing:
-      //     - client's identity information (X509 subject name)
-      //     - public key needed to verfiy messages received from client
-      ret = demo_ecdh_load_remote_sign_cert(&(proxy->ecdhconn), optarg);
-      if (ret != EXIT_SUCCESS)
-      {
-        fprintf(stdout, "invalid remote (peer) certificate path: %s\n", optarg);
-        exit(EXIT_FAILURE);
-      }
-      break;
-    // ECDH Connection
-    case 'p':
-      proxy->ecdhconn.config.port = strdup(optarg);
-      break;
-    // TLS Connection
-    case 'I':
-      proxy->tlsconn.remote_server = strdup(optarg);
-      break;
-    case 'N':
-      proxy->tlsconn.remote_server_func = strdup(optarg);
-      break;
-    case 'P':
-      proxy->tlsconn.conn_port = strdup(optarg);
-      break;
-    case 'C':
-      proxy->tlsconn.ca_cert_path = strdup(optarg);
-      break;
-    case 'R':
-      proxy->tlsconn.local_key_path = strdup(optarg);
-      break;
-    case 'U':
-      proxy->tlsconn.local_cert_path = strdup(optarg);
-      break;
-    // Test
-    case 'm':
-      proxy->ecdhconn.config.session_limit = atoi(optarg);
-      break;
-    // Misc
+    // display command-line option "help" information for the user
     case 'h':
       proxy_usage(argv[0]);
       exit(EXIT_SUCCESS);
+      break;
+    // load private key for proxy's ECDH server role (local sign key)
+    case 'k':
+      // load proxy's ECDH server private key needed to sign messages of server-side origin
+      ret = demo_ecdh_load_local_sign_key(&(proxy->ecdhconn), optarg);
+      if (ret != EXIT_SUCCESS)
+      {
+        fprintf(stdout, "invalid ECDH server signature key path: %s\n", optarg);
+        exit(EXIT_FAILURE);
+      }
+      break;
+    // set session count limit for proxy (default is unlimited)
+    case 'm':
+      proxy->ecdhconn.config.session_limit = atoi(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: proxy session limit = %d",
+                proxy->ecdhconn.config.session_limit);
+      break;
+    // configure port string for proxy's ECDH interface
+    case 'p':
+      proxy->ecdhconn.config.port = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: ECDH interface port = %s",
+                proxy->ecdhconn.config.port);
+      break;
+    // load public certificate for remote ECDH client (local verify key)
+    case 'u':
+      ret = demo_ecdh_load_remote_sign_cert(&(proxy->ecdhconn), optarg);
+      if (ret != EXIT_SUCCESS)
+      {
+        fprintf(stdout,
+                "invalid remote (ECDH client) certificate path: %s\n",
+                optarg);
+        exit(EXIT_FAILURE);
+      }
+      break;
+     // configure file name for Certificate Authority (CA) certificate
+     case 'C':
+      proxy->tlsconn.ca_cert_path = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: CA certificate path = %s",
+                proxy->tlsconn.ca_cert_path);
+      break;
+    // configure TLS server host string
+    case 'I':
+      proxy->tlsconn.remote_host = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: TLS (remote server) host = %s",
+                proxy->tlsconn.remote_host);
+      break;
+    // configure SAN for remote server certificate validation
+    case 'N':
+      proxy->tlsconn.remote_san = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: TLS (remote server) SAN = %s",
+                proxy->tlsconn.remote_san);
+      break;
+    // configure port string for proxy's TLS interface
+    case 'P':
+      proxy->tlsconn.conn_port = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: ECDH interface port = %s",
+                proxy->tlsconn.conn_port);
+      break;
+    case 'R':
+      proxy->tlsconn.local_key_path = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: TLS (local client) private key path = %s",
+                proxy->tlsconn.local_key_path);
+      break;
+    case 'U':
+      proxy->tlsconn.local_cert_path = strdup(optarg);
+      kmyth_log(LOG_DEBUG,
+                "option: TLS (local client) public cert path = %s",
+                proxy->tlsconn.local_cert_path);
+      break;
     default:
       proxy_error(proxy);
     }
@@ -189,20 +215,28 @@ static void proxy_check_options(TLSProxy * proxy)
 
   bool err = false;
 
-  if (proxy->tlsconn.remote_server == NULL)
+  if (proxy->tlsconn.remote_host == NULL)
   {
-    fprintf(stderr, "remote server IP or hostname arg (-I) is required.\n");
+    kmyth_log(LOG_ERR, "remote server host string (-I) is required");
     err = true;
   }
+
   if (proxy->tlsconn.conn_port == NULL)
   {
-    fprintf(stderr, "TLS connection port number argument (-P) is required.\n");
+    kmyth_log(LOG_ERR, "TLS connection port number argument (-P) is required");
     err = true;
   }
+
   if (err)
   {
-    kmyth_log(LOG_ERR, "Invalid command-line arguments.");
     proxy_error(proxy);
+  }
+
+  // default remote certificate "name" criteria (if not specified by user)
+  if (proxy->tlsconn.remote_san == NULL)
+  {
+    proxy->tlsconn.remote_san = proxy->tlsconn.remote_host;
+    kmyth_log(LOG_DEBUG, "no SAN specified for remote host");
   }
 }
 
@@ -615,6 +649,7 @@ int main(int argc, char **argv)
     kmyth_log(LOG_ERR, "failed to setup proxy's TLS client interface");
     proxy_error(&proxy);
   }
+  kmyth_log(LOG_DEBUG, "finished setting up proxy's TLS client interface");
 
   // setup proxy's ECDH server interface
   if (EXIT_SUCCESS != proxy_create_ecdh_server(&proxy))
