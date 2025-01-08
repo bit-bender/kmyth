@@ -106,7 +106,7 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
   int option_index = 0;
 
   while ((options =
-          getopt_long(argc, argv, "c:h:k:m:p:u:C:I:N:P:R:U:",
+          getopt_long(argc, argv, "c:hk:m:p:u:C:I:N:P:R:U:",
                       proxy_longopts, &option_index)) != -1)
   {
     switch (options)
