@@ -13,6 +13,7 @@ DOC_DIR ?= doc
 LIB_DIR ?= lib
 LOGGER_DIR ?= logger
 UTILS_DIR ?= utils
+KMIP_LIB_DIR ?= /usr/local/lib
 
 # Specify kmyth applications (main) directories/files
 MAIN_SRC_DIR = $(SRC_DIR)/main
@@ -277,8 +278,10 @@ SOFLAGS = -shared#                       compile/link shared library
 SOFLAGS += -fPIC#
 
 # Specify linker flags
-LDFLAGS = -Llib#                         link path for libkmyth-*.so
-LDFLAGS += -Wl,-rpath=lib#               runtime path for libkmyth-*.so
+LDFLAGS = -Llib#                         link path for libkmyth-*.so*
+LDFLAGS += -L$(KMIP_LIB_DIR)#            link path for libkmip*.so*
+LDFLAGS += -Wl,-rpath=lib#               runtime path for libkmyth-*.so*
+LDFLAGS += -Wl,-rpath=$(KMIP_LIB_DIR)#   runtime path for libkmip*.so*
 
 #====================== END: TOOL CONFIGURATION ==============================
 
@@ -301,9 +304,9 @@ libs: clean-backups \
       $(LIB_DIR)/libkmyth-tpm.so
 
 .PHONY: nsl
-nsl:	clean-backups \
-	$(BIN_DIR)/nsl-client \
-	$(BIN_DIR)/nsl-server
+nsl: clean-backups \
+     $(BIN_DIR)/nsl-client \
+     $(BIN_DIR)/nsl-server
 
 .PHONY: utils-lib
 utils-lib: clean-backups $(LIB_DIR)/libkmyth-utils.so

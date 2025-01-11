@@ -34,9 +34,12 @@
 SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= SIM
 SGX_ARCH ?= x64
+
 SGX_SSL_UNTRUSTED_LIB_PATH ?= /opt/intel/sgxssl/lib64/
 SGX_SSL_TRUSTED_LIB_PATH ?= /opt/intel/sgxssl/lib64/
 SGX_SSL_INCLUDE_PATH ?= /opt/intel/sgxssl/include/
+
+KMIP_LIB_PATH ?= /usr/local/lib
 
 TEST_ENCLAVE_HEADER_TRUSTED ?= '"kmyth_sgx_test_enclave_t.h"'
 TEST_ENCLAVE_HEADER_UNTRUSTED ?= '"kmyth_sgx_test_enclave_u.h"'
@@ -108,7 +111,7 @@ ifeq ($(SGX_DEBUG), 1)
 else ifeq ($(SGX_PRERELEASE), 1)
 	SGX_COMMON_CFLAGS += -DNDEBUG -DEDEBUG -UDEBUG
 else
-	GX_COMMON_CFLAGS += -DNDEBUG -UEDEBUG -UDEBUG
+	SGX_COMMON_CFLAGS += -DNDEBUG -UEDEBUG -UDEBUG
 endif
 
 SGX_COMMON_CXXFLAGS := $(SGX_COMMON_FLAGS)
@@ -172,6 +175,7 @@ Demo_App_Cpp_Flags += $(SGX_COMMON_CXXFLAGS)
 Common_App_Link_Flags := $(SGX_COMMON_CFLAGS)
 Common_App_Link_Flags += -L$(SGX_LIBRARY_PATH)
 Common_App_Link_Flags += -L$(SGX_SSL_UNTRUSTED_LIB_PATH)
+Common_App_link_Flags += -L$(KMIP_LIB_PATH)
 Common_App_Link_Flags += -l$(Urts_Library_Name)
 Common_App_Link_Flags += -lsgx_usgxssl
 Common_App_Link_Flags += -lpthread
@@ -179,6 +183,7 @@ Common_App_Link_Flags += -lkmyth-utils
 Common_App_Link_Flags += -lkmyth-logger
 Common_App_Link_Flags += -lkmyth-tpm
 Common_App_Link_Flags += -lkmip
+Common_App_Link_Flags += -Wl,-rpath=$(KMIP_LIB_PATH)
 
 ifneq ($(SGX_MODE), HW)
 	Common_App_Link_Flags += -lsgx_uae_service_sim
