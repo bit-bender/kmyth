@@ -292,6 +292,24 @@ int parse_client_hello_msg(ECDHMessage * msg_in,
 
   // verify that identity in 'Client Hello' message matches the client
   // certificate pre-loaded into it's peer (TLS proxy for server)
+  char msg[128] = { 0 };
+  char temp_name[64] = { 0 };
+  strncat(msg, "client ID from Client Hello message: ", 63);
+  X509_NAME_get_text_by_NID(client_id,
+                            NID_commonName,
+                            (char *) temp_name,
+                            63);
+  strncat(msg, temp_name, 64);
+  kmyth_sgx_log(LOG_DEBUG, msg);
+  memset(msg, 0, 128);
+  memset(temp_name, 0, 64);
+  strncat(msg, "client ID from pre-loaded certificate: ", 63);
+  X509_NAME_get_text_by_NID(expected_client_id,
+                            NID_commonName,
+                            (char *) temp_name,
+                            63);
+  strncat(msg, temp_name, 64);
+  kmyth_sgx_log(LOG_DEBUG, msg);
   if (0 != X509_NAME_cmp(client_id, expected_client_id))
   {
     kmyth_sgx_log(LOG_ERR, "'Client Hello' - unexpected client identity");
@@ -630,6 +648,24 @@ int parse_server_hello_msg(ECDHMessage * msg_in,
 
   // verify that identity in 'Server Hello' message matches the server
   // certificate pre-loaded into it's peer (enclave client)
+  char msg[128] = { 0 };
+  char temp_name[64] = { 0 };
+  strncat(msg, "server ID from Server Hello message: ", 63);
+  X509_NAME_get_text_by_NID(rcvd_server_id,
+                            NID_commonName,
+                            (char *) temp_name,
+                            63);
+  strncat(msg, temp_name, 64);
+  kmyth_sgx_log(LOG_DEBUG, msg);
+  memset(msg, 0, 128);
+  memset(temp_name, 0, 64);
+  strncat(msg, "server ID from pre-loaded certificate: ", 63);
+  X509_NAME_get_text_by_NID(rcvd_server_id,
+                            NID_commonName,
+                            (char *) temp_name,
+                            63);
+  strncat(msg, temp_name, 64);
+  kmyth_sgx_log(LOG_DEBUG, msg);
   if (0 != X509_NAME_cmp(rcvd_server_id, expected_server_id))
   {
     kmyth_sgx_log(LOG_ERR, "'Server Hello' - unexpected server identity");
