@@ -50,7 +50,7 @@
 #define SERVER_PUBLIC_CERT_FILE "demo/data/proxy_cert.pem"
 
 /* These parameters are hard-coded for now. */
-#define SERVER_HOST "localhost"
+#define SERVER_ADDR "127.0.0.1"
 #define SERVER_PORT "7000"
 #define KEY_ID "7"
 #define KEY_ID_LEN 1
@@ -127,20 +127,20 @@ int main(void)
   if (client_ec_cert_bio == NULL)
   {
     demo_log(LOG_ERR, "BIO association with file (%s) failed",
-             CLIENT_PUBLIC_CERT_FILE);
+                      CLIENT_PUBLIC_CERT_FILE);
     return EXIT_FAILURE;
   }
   client_ec_cert = PEM_read_bio_X509(client_ec_cert_bio, NULL, 0, NULL);
   if (client_ec_cert == NULL)
   {
     demo_log(LOG_ERR, "EC Certificate PEM file (%s) read failed",
-             CLIENT_PUBLIC_CERT_FILE);
+                      CLIENT_PUBLIC_CERT_FILE);
     BIO_free(client_ec_cert_bio);
     return EXIT_FAILURE;
   }
   BIO_free(client_ec_cert_bio);
   demo_log(LOG_DEBUG, "loaded client public certificate from file: %s",
-           CLIENT_PUBLIC_CERT_FILE);
+                      CLIENT_PUBLIC_CERT_FILE);
 
   // marshal (DER format) the server's certificate
   //   - facilitates passing this certificate into the enclave
@@ -165,20 +165,20 @@ int main(void)
   if (server_ec_cert_bio == NULL)
   {
     demo_log(LOG_ERR, "BIO association with file (%s) failed",
-             SERVER_PUBLIC_CERT_FILE);
+                      SERVER_PUBLIC_CERT_FILE);
     return EXIT_FAILURE;
   }
   server_ec_cert = PEM_read_bio_X509(server_ec_cert_bio, NULL, 0, NULL);
   if (server_ec_cert == NULL)
   {
     demo_log(LOG_ERR, "EC Certificate PEM file (%s) read failed",
-             SERVER_PUBLIC_CERT_FILE);
+                      SERVER_PUBLIC_CERT_FILE);
     BIO_free(server_ec_cert_bio);
     return EXIT_FAILURE;
   }
   BIO_free(server_ec_cert_bio);
   demo_log(LOG_DEBUG, "loaded server public certificate from file: %s",
-           SERVER_PUBLIC_CERT_FILE);
+                      SERVER_PUBLIC_CERT_FILE);
 
   // marshal (DER format) the server's certificate
   //   - facilitates passing this certificate into the enclave
@@ -205,7 +205,7 @@ int main(void)
   if (sgx_ret != SGX_SUCCESS)
   {
     demo_log(LOG_ERR, "SGX enclave init failed - error code: %d\n",
-             (int) sgx_ret);
+                      (int) sgx_ret);
     return EXIT_FAILURE;
   }
   demo_log(LOG_DEBUG, "initialized SGX enclave - EID = 0x%016lx", eid);
@@ -214,8 +214,8 @@ int main(void)
   demo_log(LOG_DEBUG, "invoking 'retrieve key' ECALL ...");
   int retval = -1;
 
-  const char *server_host = SERVER_HOST;
-  size_t server_host_len = strlen(server_host) + 1;
+  const char *server_addr = SERVER_ADDR;
+  size_t server_addr_len = strlen(server_addr) + 1;
   const char *server_port = SERVER_PORT;
   size_t server_port_len = strlen(server_port) + 1;
 
@@ -227,8 +227,8 @@ int main(void)
                                                    (size_t) client_ec_cert_bytes_len,
                                                    server_ec_cert_bytes,
                                                    (size_t) server_ec_cert_bytes_len,
-                                                   server_host,
-                                                   server_host_len,
+                                                   server_addr,
+                                                   server_addr_len,
                                                    server_port,
                                                    server_port_len,
                                                    (unsigned char *) KEY_ID,

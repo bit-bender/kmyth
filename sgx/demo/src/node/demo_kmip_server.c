@@ -26,7 +26,7 @@ static void demo_kmip_server_init(DemoServer * demo_server)
   demo_server->tlsconn.isClient = false;
   
   // initialize all demo server's TLSPeer struct parameters as NULL
-  demo_server->tlsconn.remote_host = NULL;
+  demo_server->tlsconn.remote_addr = NULL;
   demo_server->tlsconn.conn_port = NULL;
   demo_server->tlsconn.ca_cert_path = NULL;
   demo_server->tlsconn.local_private_key_path = NULL;

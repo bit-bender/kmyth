@@ -413,7 +413,7 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	                         -p 7000 \
 	                         -K demo/data/proxy_priv.pem \
 	                         -L demo/data/proxy_cert.pem \
-				             -R localhost \
+	                         -R 127.0.0.1 \
 	                         -c demo/data/ca_cert.pem \
 	                         -P 7001 \
 	                         -m 1 &

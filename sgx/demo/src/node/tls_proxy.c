@@ -160,9 +160,9 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
       proxy->tlsconn.conn_port = strdup(optarg);
       break;
 
-    // configure file name for remote TLS server public certificate 
+    // configure IP address string for remote TLS server
     case 'R':
-      proxy->tlsconn.remote_host = strdup(optarg);
+      proxy->tlsconn.remote_addr = strdup(optarg);
       break;
 
     default:
@@ -200,9 +200,9 @@ static void proxy_check_options(TLSProxy * proxy)
     err = true;
   }
 
-  if (proxy->tlsconn.remote_host == NULL)
+  if (proxy->tlsconn.remote_addr == NULL)
   {
-    fprintf(stderr, "missing TLS remote server host name (-R) option");
+    fprintf(stderr, "missing TLS remote server IP address (-R) option");
     err = true;
   }
 

@@ -34,10 +34,10 @@ void demo_tls_cleanup(TLSPeer * tlsconn)
     SSL_CTX_free(tlsconn->ctx);
   }
 
-  // clean up name string for remote TLS host
-  if (tlsconn->remote_host != NULL)
+  // clean up IP address string for remote TLS host
+  if (tlsconn->remote_addr != NULL)
   {
-    free(tlsconn->remote_host);
+    free(tlsconn->remote_addr);
   }
   
   // clean up 'port' string for TLS interface
@@ -231,16 +231,16 @@ int demo_tls_config_client_connect(TLSPeer * tls_clnt)
     return -1;
   }
 
-  // configure remote server hostname settings:
-  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_host))
+  // set BIO's remote server hostname to configured IP address
+  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_addr))
   {
     log_openssl_error("BIO_set_conn_hostname()");
     return -1;
   }
-  kmyth_log(LOG_DEBUG, "configured BIO remote server hostname: %s",
-                       tls_clnt->remote_host);
+  kmyth_log(LOG_DEBUG, "configured BIO remote server IP address: %s",
+                       tls_clnt->remote_addr);
  
-  // set the port number for the connection
+  // set BIO's port number for the connection
   if (1 != BIO_set_conn_port(tls_clnt->bio, tls_clnt->conn_port))
   {
     log_openssl_error("BIO_set_conn_port()");

@@ -65,7 +65,7 @@ typedef struct TLSPeer
 {
   bool isClient;
   char *conn_port;
-  char *remote_host;
+  char *remote_addr;
   char *ca_cert_path;
   char *local_private_key_path;
   char *local_cert_path;
