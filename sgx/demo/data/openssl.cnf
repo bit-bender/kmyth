@@ -68,12 +68,12 @@ basicConstraints        = CA:false
 
 [ alt_names_client ]
 IP.0                    = 127.0.0.1
-DNS.0                   = localhost.enclave
+DNS.0                   = localhost
 
 [ alt_names_proxy ]
 IP.0                    = 127.0.0.1
-DNS.0                   = localhost.proxy
+DNS.0                   = localhost
 
 [ alt_names_server ]
 IP.0                    = 127.0.0.1
-DNS.0                   = localhost.server 
+DNS.0                   = localhost 
