@@ -59,33 +59,33 @@ static void proxy_usage(const char *prog)
     "\nusage: %s [options]\n\n"
     "options are:\n\n"
     "ECDH Connection Information --\n"
-    "  -p or --ecdh-server-port  port number proxy will listen on for\n"
+    "  -p or --ecdh-port         port number proxy will listen on for\n"
     "                            ECDH client connections\n"
-    "  -k or --ecdh-server-key   private key PEM file name for proxy's\n"
-    "                            ECDH server role\n"
-    "  -c or --ecdh-server-cert  X509 certificate PEM file name for\n"
-    "                            proxy's ECDH server role"
-    "  -u or --ecdh-client-cert  X509 public cert PEM file name for\n"
-    "                            ECDH client connecting to proxy\n"
+    "  -k or --ecdh-local-key    private key PEM file name (path)\n"
+    "                            for proxy's local ECDH server role\n"
+    "  -l or --ecdh-local-cert   X509 certificate PEM file name (path)\n"
+    "                            for proxy's local ECDH server role"
+    "  -r or --ecdh-remote-cert  X509 public cert PEM file name (path)\n"
+    "                            for remote ECDH client connecting to proxy\n"
     "TLS Connection Information --\n"
-    "  -I or --tls-server-host   network name (IP address or hostname) of\n"
-    "                            the remote server for the TLS connection\n"
-    "  -N or --tls-server-san    Subject Alternative Name (SAN) expected in\n"
-    "                            received remote server's certificate. If\n"
-    "                            this option is not specified, the host\n"
-    "                            (network) name will be used for certificate\n"
-    "                            verification as the default behavior.\n"
-    "  -P or --tls-server-port   port number to use when connecting to the remote TLS server\n"
-    "  -R or --tls_client-key    private key PEM file name for proxy's TLS client role\n"
-    "  -U or --tls-client-cert   X509 certificate PEM file name for proxy's TLS client role\n"
+    "  -P or --tls-port          port number for proxy to use\n"
+    "                            when connecting to the remote TLS server\n"
+    "  -K or --tls-local-key     private key PEM file name (path)\n"
+    "                            for proxy's local TLS client role\n"
+    "  -L or --tls-local-cert    X509 certificate PEM file name (path)\n"
+    "                            for proxy's local TLS client role\n"
+    "  -R or --tls-remote-host   network name for remote TLS server\n"
     "Certificate Authority (CA) Information --\n"
-    "  -C or --ca-path           CA certificate file used to verify the remote TLS server\n"
-    "                            (if not specified, the default system CA chain will be used instead)\n"
+    "  -c or --ca-path           X509 public certificate PEM file name (path)\n"
+    "                            for CA, if not specified, default system\n"
+    "                            CA chain will be used\n"
     "Test Options --\n"
-    "  -m or --maxconn           number of connections the server will accept before exiting\n"
-    "                            (unlimited by default, or if the value is not a positive integer)\n"
+    "  -m or --maxconn           number of ECDH connections the proxy will\n"
+    "                            accept before exiting (unlimited by default,\n"
+    "                            or if supplied value not positive integer)\n"
     "Misc --\n"
-    "  -h or --help     Help (displays this usage).\n\n", prog);
+    "  -h or --help              Help (displays this proxy usage info)\n\n",
+                                 prog);
 }
 
 /*****************************************************************************
@@ -93,8 +93,6 @@ static void proxy_usage(const char *prog)
  ****************************************************************************/
 static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
 {
-  int ret = -1;
-
   // Exit early if there are no arguments.
   if (1 == argc)
   {
@@ -106,74 +104,67 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
   int option_index = 0;
 
   while ((options =
-          getopt_long(argc, argv, "c:hk:m:p:u:C:I:N:P:R:U:",
+          getopt_long(argc, argv, "c:hk:l:m:p:r:K:L:P:R:",
                       proxy_longopts, &option_index)) != -1)
   {
     switch (options)
-   {
-    //  load public certificate for proxy's ECDH server role (remote verify key)
+  {
+    // configure file name for Certificate Authority (CA) certificate
     case 'c':
-      ret = demo_ecdh_load_local_sign_cert(&(proxy->ecdhconn), optarg);
-      if (ret != EXIT_SUCCESS)
-      {
-        fprintf(stderr, "invalid ECDH server certificate path: %s\n", optarg);
-        exit(EXIT_FAILURE);
-      }
+      proxy->tlsconn.ca_cert_path = strdup(optarg);
       break;
+
     // display command-line option "help" information for the user
     case 'h':
       proxy_usage(argv[0]);
       exit(EXIT_SUCCESS);
       break;
-    // load private key for proxy's ECDH server role (local sign key)
+
+    // configure file name for proxy's ECDH server role local private key
     case 'k':
-      // load proxy's ECDH server private key needed to sign messages of server-side origin
-      ret = demo_ecdh_load_local_sign_key(&(proxy->ecdhconn), optarg);
-      if (ret != EXIT_SUCCESS)
-      {
-        fprintf(stderr, "invalid ECDH server signature key path: %s\n", optarg);
-        exit(EXIT_FAILURE);
-      }
+      proxy->ecdhconn.config.local_private_key_path = strdup(optarg);
       break;
+
+    // configure file name for proxy's ECDH server role public certificate
+    case 'l':
+      proxy->ecdhconn.config.local_cert_path = strdup(optarg);
+      break;
+
     // set session count limit for proxy (default is unlimited)
     case 'm':
       proxy->ecdhconn.config.session_limit = atoi(optarg);
       break;
+
     // configure port string for proxy's ECDH interface
     case 'p':
       proxy->ecdhconn.config.port = strdup(optarg);
       break;
-    // load public certificate for remote ECDH client (local verify key)
-    case 'u':
-      ret = demo_ecdh_load_remote_sign_cert(&(proxy->ecdhconn), optarg);
-      if (ret != EXIT_SUCCESS)
-      {
-        fprintf(stderr, "invalid ECDH remote client cert path: %s\n", optarg);
-        exit(EXIT_FAILURE);
-      }
+
+    //  configure file name for remote ECDH client public certificate
+    case 'r':
+      proxy->ecdhconn.config.remote_cert_path = strdup(optarg);
       break;
-     // configure file name for Certificate Authority (CA) certificate
-     case 'C':
-      proxy->tlsconn.ca_cert_path = strdup(optarg);
+
+    // configure file name for proxy's TLS client role private key 
+    case 'K':
+      proxy->tlsconn.local_private_key_path = strdup(optarg);
       break;
-    // configure TLS remote server host name/IP string
-    case 'I':
-      proxy->tlsconn.remote_host = strdup(optarg);
+
+    // configure file name for proxy's TLS client role public certificate 
+    case 'L':
+      proxy->tlsconn.local_cert_path = strdup(optarg);
       break;
-    // configure SAN for remote server certificate validation
-    case 'N':
-      proxy->tlsconn.remote_san = strdup(optarg);
-      break;
-    // configure port string for proxy's TLS interface
+
+    // configure TLS port string for proxy (remote server listen port)
     case 'P':
       proxy->tlsconn.conn_port = strdup(optarg);
       break;
+
+    // configure file name for remote TLS server public certificate 
     case 'R':
-      proxy->tlsconn.local_key_path = strdup(optarg);
+      proxy->tlsconn.remote_host = strdup(optarg);
       break;
-    case 'U':
-      proxy->tlsconn.local_cert_path = strdup(optarg);
-      break;
+
     default:
       proxy_error(proxy);
     }
@@ -185,19 +176,33 @@ static void proxy_get_options(TLSProxy * proxy, int argc, char **argv)
  ****************************************************************************/
 static void proxy_check_options(TLSProxy * proxy)
 {
+  // check that required ECDH interface options were specified
   demo_ecdh_check_options(&(proxy->ecdhconn.config));
 
+  // check that required TLS interface options were specified 
   bool err = false;
 
-  if (proxy->tlsconn.remote_host == NULL)
+  if (proxy->tlsconn.local_private_key_path == NULL)
   {
-    fprintf(stderr, "missing remote server host name/IP string (-I) option");
+    fprintf(stderr, "missing TLS local private key file path (-K) option");
+    err = true;
+  }
+
+  if (proxy->tlsconn.local_cert_path == NULL)
+  {
+    fprintf(stderr, "missing TLS local public cert file path (-L) option");
     err = true;
   }
 
   if (proxy->tlsconn.conn_port == NULL)
   {
-    fprintf(stderr, "missing TLS connection port number (-P) argument");
+    fprintf(stderr, "missing TLS connection port number (-P) option");
+    err = true;
+  }
+
+  if (proxy->tlsconn.remote_host == NULL)
+  {
+    fprintf(stderr, "missing TLS remote server host name (-R) option");
     err = true;
   }
 
@@ -235,6 +240,32 @@ static int proxy_create_tls_client(TLSProxy * proxy)
 static int proxy_create_ecdh_server(TLSProxy * proxy)
 {
   ECDHPeer *ecdh_svr = &(proxy->ecdhconn);
+  int ret = -1;
+
+  // load proxy's ECDH server private key
+  // (needed to sign messages of server-side origin)
+  ret = demo_ecdh_load_local_private_key(ecdh_svr);
+  if (ret != EXIT_SUCCESS)
+  {
+    kmyth_log(LOG_ERR, "error loading proxy's ECDH server signature key");
+    exit(EXIT_FAILURE);
+  }
+
+  // load proxy's ECDH server public certificate
+  ret = demo_ecdh_load_local_cert(ecdh_svr);
+  if (ret != EXIT_SUCCESS)
+  {
+    kmyth_log(LOG_ERR, "error loading proxy's ECDH server certificate");
+    exit(EXIT_FAILURE);
+  }
+
+  // load remote ECDH client's public certificate
+  ret = demo_ecdh_load_remote_cert(ecdh_svr);
+  if (ret != EXIT_SUCCESS)
+  {
+    kmyth_log(LOG_ERR, "error loading ECDH remote client certificate");
+    exit(EXIT_FAILURE);
+  }
 
   ecdh_svr->config.listen_socket_fd = UNSET_FD;
 
@@ -380,7 +411,7 @@ static int proxy_send_key_response_message(TLSProxy * proxy)
   ByteBuffer *kmip_resp = &(ecdh_svr->session.proto.kmip_response);
   ECDHMessage *key_resp = &(ecdh_svr->session.proto.key_response);
 
-  ret = compose_key_response_msg(ecdh_svr->config.local_sign_key,
+  ret = compose_key_response_msg(ecdh_svr->config.local_private_key,
                                  &(ecdh_svr->session.response_symkey),
                                  kmip_resp,
                                  key_resp);

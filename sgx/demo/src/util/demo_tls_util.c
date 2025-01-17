@@ -34,18 +34,12 @@ void demo_tls_cleanup(TLSPeer * tlsconn)
     SSL_CTX_free(tlsconn->ctx);
   }
 
-  // clean up 'host' (hostname or IP) string for TLS interface
+  // clean up name string for remote TLS host
   if (tlsconn->remote_host != NULL)
   {
     free(tlsconn->remote_host);
   }
   
-  // clean up Subject Alternative Name (SAN) string for remote TLS host
-  if (tlsconn->remote_san != NULL)
-  {
-    free(tlsconn->remote_san);
-  }
-
   // clean up 'port' string for TLS interface
   if (tlsconn->conn_port != NULL)
   {
@@ -59,9 +53,9 @@ void demo_tls_cleanup(TLSPeer * tlsconn)
   }
 
   // clean up local key file path string for TLS interface
-  if (tlsconn->local_key_path != NULL)
+  if (tlsconn->local_private_key_path != NULL)
   {
-    free(tlsconn->local_key_path);
+    free(tlsconn->local_private_key_path);
   }
 
   // clean up local certificate file path string for TLS interface
@@ -184,19 +178,19 @@ int demo_tls_config_ctx(TLSPeer * tlsconn)
   }
 
   // set local private key
-  if (tlsconn->local_key_path)
+  if (tlsconn->local_private_key_path)
   {
     if (1 != SSL_CTX_use_PrivateKey_file(tlsconn->ctx,
-                                         tlsconn->local_key_path,
+                                         tlsconn->local_private_key_path,
                                          SSL_FILETYPE_PEM))
     {
       kmyth_log(LOG_ERR, "failed to set local private key (%s)",
-                         tlsconn->local_key_path);
+                         tlsconn->local_private_key_path);
       log_openssl_error("SSL_CTX_use_PrivateKey_file()");
       return -1;
     }
     kmyth_log(LOG_DEBUG, "set local private key (%s)",
-                         tlsconn->local_key_path);
+                         tlsconn->local_private_key_path);
   }
 
   // set local certificate
@@ -237,48 +231,23 @@ int demo_tls_config_client_connect(TLSPeer * tls_clnt)
     return -1;
   }
 
+  // configure remote server hostname settings:
+  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_host))
+  {
+    log_openssl_error("BIO_set_conn_hostname()");
+    return -1;
+  }
+  kmyth_log(LOG_DEBUG, "configured BIO remote server hostname: %s",
+                       tls_clnt->remote_host);
+ 
   // set the port number for the connection
   if (1 != BIO_set_conn_port(tls_clnt->bio, tls_clnt->conn_port))
   {
     log_openssl_error("BIO_set_conn_port()");
     return -1;
   }
-
-  // configure server hostname settings
-  if (1 != BIO_set_conn_hostname(tls_clnt->bio, tls_clnt->remote_host))
-  {
-    log_openssl_error("BIO_set_conn_hostname()");
-    return -1;
-  }
-
- 
-  // if the user supplies a Subject Alternative Name (SAN) for the
-  // remote server, configure its use for certificate verification
-  if (tls_clnt->remote_san != NULL)
-  {
-    // obtain SSL BIO pointer for the TLS client BIO chain
-    SSL *ssl = NULL;
-
-    BIO_get_ssl(tls_clnt->bio, &ssl);  // internal pointer, not a new allocation
-    if (ssl == NULL)
-    {
-      log_openssl_error("BIO_get_ssl()");
-      return -1;
-    }
-
-    // check only against certificate SAN values (not CN/DN) 
-    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
-
-    // replace any existing critera with user supplied SAN
-    //   Note: SSL_add1_host() would have appended as additional criteria
-    if (1 != SSL_set1_host(ssl, tls_clnt->remote_san))
-    {
-      log_openssl_error("SSL_set1_host()");
-      return -1;
-    }
-
-    kmyth_log(LOG_DEBUG, "set remote server SAN = %s", tls_clnt->remote_san);
-  }
+  kmyth_log(LOG_DEBUG, "configured BIO remote server IP port: %s",
+                       tls_clnt->conn_port);
 
   return 0;
 }
@@ -288,10 +257,10 @@ int demo_tls_config_client_connect(TLSPeer * tls_clnt)
  ****************************************************************************/
 int demo_tls_config_server_accept(TLSPeer * tls_svr)
 {
-  // verify that this configuration is correctly for a client connection
+  // verify that this configuration is correctly configured as a server
   if (tls_svr->isClient)
   {
-    kmyth_log(LOG_ERR, "server config inappropriate for client connection");
+    kmyth_log(LOG_ERR, "node not configured as a server");
     return -1;
   }
 
@@ -309,24 +278,6 @@ int demo_tls_config_server_accept(TLSPeer * tls_svr)
   // set read/write operations to only return after successful handshake
   SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
-  // if the user supplies a Subject Alternative Name (SAN) for the
-  // remote client, configure its use it for certificate verification
-  if (tls_svr->remote_san != NULL)
-  {
-    // check only against certificate SAN values (not CN/DN) 
-    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NEVER_CHECK_SUBJECT);
-
-    // replace any existing critera with user supplied SAN
-    //   Note: SSL_add1_host() would have appended as additional criteria
-    if (1 != SSL_set1_host(ssl, tls_svr->remote_san))
-    {
-      log_openssl_error("SSL_set1_host()");
-      return -1;
-    }
-
-    kmyth_log(LOG_DEBUG, "set remote client SAN = %s", tls_svr->remote_san);
-  }
-
   // create new accept BIO to accept client connection to the server
   BIO *abio = BIO_new_accept(tls_svr->conn_port);
   if (abio == NULL)
@@ -337,7 +288,12 @@ int demo_tls_config_server_accept(TLSPeer * tls_svr)
   }
 
   // prepend SSL BIO to any incoming connection
-  BIO_set_accept_bios(abio, sbio);
+  if (BIO_set_accept_bios(abio, sbio) != 1)
+  {
+    kmyth_log(LOG_ERR, "error chaining BIOs");
+    log_openssl_error("BIO_set_accept_bios()");
+    return -1;
+  }
 
   // setup accept BIO
   if (BIO_do_accept(abio) <= 0)

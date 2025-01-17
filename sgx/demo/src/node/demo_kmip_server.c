@@ -25,9 +25,14 @@ static void demo_kmip_server_init(DemoServer * demo_server)
   // configure 'server' mode
   demo_server->tlsconn.isClient = false;
   
-  // initialize remote client information as NULL (must later re-configure)
+  // initialize all demo server's TLSPeer struct parameters as NULL
   demo_server->tlsconn.remote_host = NULL;
-  demo_server->tlsconn.remote_san = NULL;
+  demo_server->tlsconn.conn_port = NULL;
+  demo_server->tlsconn.ca_cert_path = NULL;
+  demo_server->tlsconn.local_private_key_path = NULL;
+  demo_server->tlsconn.local_cert_path = NULL;
+  demo_server->tlsconn.ctx = NULL;
+  demo_server->tlsconn.bio = NULL; 
 }
 
 /*****************************************************************************
@@ -60,20 +65,17 @@ static void demo_kmip_server_usage(const char *prog)
   fprintf(stdout,
     "\nusage: %s [options]\n\n"
     "options are:\n\n"
-    "TLS Connection Information --\n"
-    "  -k or --server-key    server (local) private key PEM file name\n"
-    "  -c or --server-cert   server (local) certificate PEM file name\n"
-    "  -N or --client-san    Subject Alternative Name (SAN) expected in\n"
-    "                        received remote client's certificate. If this\n"
-    "                        option is not specified, the host (network)\n" 
-    "                        name will be used for certificate verification\n"
-    "                        as the default behavior.\n"
-    "  -C or --ca-cert       path (file name) for the Certificate\n"
+    "Keys / Certificates (all options must be specified) --\n"
+    "  -k or --local-key     server (local) private key PEM file name\n"
+    "  -l or --local-cert    server (local) certificate PEM file name\n"
+    "  -r or --remote_cert   client (remote) certificate PEM file name\n"
+    "  -c or --ca-cert       path (file name) for the Certificate\n"
     "                        Authority's (CA's) public certificate\n"
-    "Network Information --\n"
+    "Network Information  (all options must be specified) --\n"
     "  -p or --port          port number the server will listen on\n"
     "Misc --\n"
-    "  -h or --help          help (displays this usage info)\n\n", prog);
+    "  -h or --help          help (displays this usage info and exits)\n\n",
+    prog);
 }
 
 /*****************************************************************************
@@ -89,14 +91,6 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
     exit(EXIT_SUCCESS);
   }
 
-  // validate input 'DemoServer' context struct initialization
-  if ((demo_server->tlsconn.remote_host != NULL) ||
-      (demo_server->tlsconn.remote_san != NULL))
-  {
-    kmyth_log(LOG_ERR, "'client-specific' server settings detected");
-    demo_kmip_server_error(demo_server);
-  }
-
   int options;
   int option_index = 0;
 
@@ -104,36 +98,36 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   char * server_key_path = NULL;
   char * server_cert_path = NULL;
-  char * client_san = NULL;
   char * ca_cert_path = NULL;
   char * port_string = NULL;
   bool help_flag = false;
 
   // parse command-line options, but do not yet process them
-  while ((options =
-          getopt_long(argc, argv, "c:hk:p:C:N:",
-                      demo_kmip_server_longopts, &option_index)) != -1)
+  while ((options = getopt_long(argc,
+                                argv,
+                                "c:hk:l:p:",
+                                demo_kmip_server_longopts,
+                                &option_index)) != -1)
   {
     switch (options)
     {
-    // key and certificate files
+    //specify path to file containing CA public certificate
+    case 'c':
+      ca_cert_path = optarg;
+      break;
+    // specify path to file containing server (local) private key
     case 'k':
       server_key_path = optarg;
       break;
-    case 'c':
+    // specify path to file containing server (local) public certificate
+    case 'l':
       server_cert_path = optarg;
       break;
-    case 'C':
-      ca_cert_path = optarg;
-      break;
-    case 'N':
-      client_san = optarg;
-      break;
-    // network Connection
+    // specify network (IP) port for server to listen on
     case 'p':
       port_string = optarg;
       break;
-    // Misc
+    // display help (application usage information)
     case 'h':
       help_flag = true;
       break;
@@ -158,17 +152,17 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
 
   if (server_key_path == NULL)
   {
-    fprintf(stderr, "path for server's private key (-k) option required");
+    fprintf(stderr, "server's private key path (-k) option required");
     invalid_options = true;
   }
   else
   {
-    demo_server->tlsconn.local_key_path = strdup(server_key_path);
+    demo_server->tlsconn.local_private_key_path = strdup(server_key_path);
   }
 
   if (server_cert_path == NULL)
   {
-    fprintf(stderr, "path for server's public cert (-c) option required");
+    fprintf(stderr, "server's public cert path (-l) option required");
     invalid_options = true;
   }
   else
@@ -184,11 +178,6 @@ static void demo_kmip_server_get_options(DemoServer * demo_server,
   else
   {
     demo_server->tlsconn.conn_port = strdup(port_string);
-  }
-
-  if (client_san != NULL)
-  {
-    demo_server->tlsconn.remote_san = strdup(client_san);
   }
 
   // consolidated error exit point => all detected invalid options first logged

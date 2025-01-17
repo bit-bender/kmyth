@@ -34,16 +34,15 @@ typedef struct TLSProxy
  */
 static const struct option proxy_longopts[] = {
   // ECDH connection info
-  {"ecdh-server-port", required_argument, 0, 'p'},
-  {"ecdh-server-key", required_argument, 0, 'k'},
-  {"ecdh-server-cert", required_argument, 0, 'c'},
-  {"ecdh-client-cert", required_argument, 0, 'u'},
+  {"ecdh-port", required_argument, 0, 'p'},
+  {"ecdh-local-key", required_argument, 0, 'k'},
+  {"ecdh-local-cert", required_argument, 0, 'l'},
+  {"ecdh-remote-cert", required_argument, 0, 'r'},
   // TLS connection info
-  {"tls-server-host", required_argument, 0, 'I'},
-  {"tls-server-port", required_argument, 0, 'P'},
-  {"tls-server-san", required_argument, 0, 'N'},
-  {"tls-client-key", required_argument, 0, 'R'},
-  {"tls-client-cert", required_argument, 0, 'U'},
+  {"tls-port", required_argument, 0, 'P'},
+  {"tls-local-key", required_argument, 0, 'K'},
+  {"tls-local-cert", required_argument, 0, 'L'},
+  {"tls-remote-host", required_argument, 0, 'R'},
   // Certificate Authority (CA) info
   {"ca-cert", required_argument, 0, 'C'},
   // Test options

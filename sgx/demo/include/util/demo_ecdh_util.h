@@ -45,12 +45,12 @@
 typedef struct ECDHConfig
 {
   bool isClient;
-  char *local_sign_key_path;
-  EVP_PKEY *local_sign_key;
-  char *local_sign_cert_path;
-  X509 *local_sign_cert;
-  char *remote_sign_cert_path;
-  X509 *remote_sign_cert;
+  char *local_private_key_path;
+  EVP_PKEY *local_private_key;
+  char *local_cert_path;
+  X509 *local_cert;
+  char *remote_cert_path;
+  X509 *remote_cert;
   char *port;
   char *ip;
   int session_limit;
@@ -150,44 +150,46 @@ int demo_ecdh_check_options(ECDHConfig * ecdhopts);
 /**
  * @brief Load the signing key for the local ECDH peer.
  *
- * @param[out] ecdhconn             Pointer to ECDHPeer struct into which a
- *                                  pointer to the EVP_PKEY local signature
- *                                  key will be "loaded"
- * 
- * @param[in]  local_sign_key_path  String containing the path for the file
- *                                  containing the key to be "loaded"
+ * @param[in/out] ecdhconn          Pointer to ECDHPeer struct into which a
+ *                                  pointer to the EVP_PKEY local private
+ *                                  key will be "loaded". This struct must
+ *                                  have been pre-configured to set its
+ *                                  'local_private_key_path' element to specify
+ *                                  the path for the file containing the key
+ *                                  to be "loaded"
+ *
  * @return none
  */
-int demo_ecdh_load_local_sign_key(ECDHPeer * ecdhconn,
-                                  char * local_sign_key_path);
+int demo_ecdh_load_local_private_key(ECDHPeer * ecdhconn);
 
 /**
  * @brief Load the certificate for the local ECDH peer.
  *
- * @param[out] ecdhconn             Pointer to ECDHPeer struct into which a
+ * @param[in/out] ecdhconn          Pointer to ECDHPeer struct into which a
  *                                  pointer to the X509 local signature
- *                                  certificate will be "loaded"
- * 
- * @param[in]  local_sign_key_path  String containing the path for the file
- *                                  containing the certificate to be "loaded"
+ *                                  certificate will be "loaded". This struct
+ *                                  must have been pre-configured to set its
+ *                                  'local_cert_path' element to specify
+ *                                  the path for the file containing the
+ *                                  certificate to be "loaded"
+ *
  * @return none
  */
-int demo_ecdh_load_local_sign_cert(ECDHPeer * ecdhconn,
-                                   char * local_sign_cert_path);
+int demo_ecdh_load_local_cert(ECDHPeer * ecdhconn);
 
 /**
  * @brief Load the certificate for the remote ECDH peer.
  *
  * @param[out] ecdhconn             Pointer to ECDHPeer struct into which a
  *                                  pointer to the X509 remote signature
- *                                  certificate will be "loaded"
- * 
- * @param[in]  local_sign_key_path  String containing the path for the file
- *                                  containing the certificate to be "loaded"
+ *                                  certificate will be "loaded". This struct
+ *                                  must have been pre-configured to set its
+ *                                  'remote_cert_path' element to specify
+ *                                  the path for the file containing the
+ *                                  certificate to be "loaded"
  * @return none
  */
-int demo_ecdh_load_remote_sign_cert(ECDHPeer * ecdhconn,
-                                    char * remote_sign_cert_path);
+int demo_ecdh_load_remote_cert(ECDHPeer * ecdhconn);
 
 /**
  * @brief Receive a 'retrieve key' protocol message from an ECDH peer.

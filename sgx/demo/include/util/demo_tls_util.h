@@ -30,6 +30,7 @@
 #include <kmyth/memory_util.h>
 
 #include "socket_util.h"
+#include "tls_util.h"
 
 #include "demo_misc_util.h"
 #include "ecdh_util.h"
@@ -63,11 +64,10 @@ typedef struct TLSMessage {
 typedef struct TLSPeer
 {
   bool isClient;
-  char *remote_host;
-  char *remote_san; 
   char *conn_port;
+  char *remote_host;
   char *ca_cert_path;
-  char *local_key_path;
+  char *local_private_key_path;
   char *local_cert_path;
   SSL_CTX *ctx;
   BIO *bio;

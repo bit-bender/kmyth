@@ -403,20 +403,18 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	@echo "==================================================================================================="
 	@echo ""
 	@$(CURDIR)/$(Server_Name) -k demo/data/server_priv.pem \
-	                          -c demo/data/server_cert.pem \
-	                          -C demo/data/ca_cert.pem \
-	                          -N localhost.proxy \
+	                          -l demo/data/server_cert.pem \
+	                          -c demo/data/ca_cert.pem \
 	                          -p 7001 &
 	@sleep 1
 	@$(CURDIR)/$(Proxy_Name) -k demo/data/proxy_priv.pem \
-	                         -c demo/data/proxy_cert.pem \
-	                         -u demo/data/client_cert.pem \
+	                         -l demo/data/proxy_cert.pem \
+	                         -r demo/data/client_cert.pem \
 	                         -p 7000 \
-	                         -R demo/data/proxy_priv.pem \
-	                         -U demo/data/proxy_cert.pem \
-	                         -C demo/data/ca_cert.pem \
-	                         -I localhost \
-	                         -N localhost.server \
+	                         -K demo/data/proxy_priv.pem \
+	                         -L demo/data/proxy_cert.pem \
+				             -R localhost \
+	                         -c demo/data/ca_cert.pem \
 	                         -P 7001 \
 	                         -m 1 &
 	@sleep 1
@@ -496,7 +494,8 @@ test/enclave/msg_util.o: untrusted/src/util/msg_util.c
 	@$(CC) $(Test_App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-test/enclave/$(Test_Enclave_Name)_u.c: $(SGX_EDGER8R) test/enclave/$(Test_Enclave_Name).edl
+test/enclave/$(Test_Enclave_Name)_u.c: \
+        $(SGX_EDGER8R) test/enclave/$(Test_Enclave_Name).edl
 	@cd test/enclave && $(SGX_EDGER8R) --untrusted $(Test_Enclave_Name).edl \
                                        --search-path $(SGX_SDK)/include \
                                        --search-path . \
@@ -508,19 +507,18 @@ test/enclave/$(Test_Enclave_Name)_u.o: test/enclave/$(Test_Enclave_Name)_u.c
 	@$(CC) $(Test_App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-$(Test_App_Name): $(Test_App_Source_Files) test/enclave/$(Test_Enclave_Name)_u.o \
-                                           test/enclave/ec_key_cert_marshal.o \
-                                           test/enclave/ec_key_cert_unmarshal.o \
-                                           test/enclave/ecdh_util.o \
-                                           test/enclave/retrieve_key_protocol.o \
-                                           test/enclave/msg_util.o \
-                                           test/enclave/protocol_ocall.o \
-                                           test/enclave/memory_ocall.o \
-                                           test/enclave/log_ocall.o
+$(Test_App_Name): $(Test_App_Source_Files) \
+                  test/enclave/$(Test_Enclave_Name)_u.o \
+                  test/enclave/ec_key_cert_marshal.o \
+                  test/enclave/ec_key_cert_unmarshal.o \
+                  test/enclave/ecdh_util.o \
+                  test/enclave/retrieve_key_protocol.o \
+                  test/enclave/msg_util.o \
+                  test/enclave/protocol_ocall.o \
+                  test/enclave/memory_ocall.o \
+                  test/enclave/log_ocall.o
 	@$(CC) $^ -o $@ $(Test_App_C_Flags) $(Test_App_Link_Flags)
 	@echo "LINK =>  $@"
-
-
 
 ######## Demo App Objects ########
 
@@ -540,7 +538,8 @@ demo/enclave/protocol_ocall.o: untrusted/src/ocall/protocol_ocall.c
 	@$(CC) $(Demo_App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-demo/enclave/$(Demo_Enclave_Name)_u.c: $(SGX_EDGER8R) demo/enclave/$(Demo_Enclave_Name).edl
+demo/enclave/$(Demo_Enclave_Name)_u.c: \
+        $(SGX_EDGER8R) demo/enclave/$(Demo_Enclave_Name).edl
 	@cd demo/enclave && $(SGX_EDGER8R) --untrusted $(Demo_Enclave_Name).edl \
 	                                   --search-path $(SGX_SDK)/include \
 	                                   --search-path . \
@@ -552,7 +551,8 @@ demo/enclave/$(Demo_Enclave_Name)_u.o: demo/enclave/$(Demo_Enclave_Name)_u.c
 	@$(CC) $(Demo_App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-demo/enclave/$(DEMO_ENCLAVE_HEADER_UNTRUSTED): demo/enclave/$(Demo_Enclave_Name)_u.c
+demo/enclave/$(DEMO_ENCLAVE_HEADER_UNTRUSTED): \
+        demo/enclave/$(Demo_Enclave_Name)_u.c
 
 demo/obj/%.o: demo/src/app/%.c demo/enclave/$(DEMO_ENCLAVE_HEADER_UNTRUSTED)
 	@$(CC) $(Demo_App_C_Flags) -c $< -o $@
@@ -609,7 +609,8 @@ $(Proxy_Name): demo/obj/tls_proxy.o \
 
 ######## Test Enclave Objects ########
 
-test/enclave/$(Test_Enclave_Name)_t.c: $(SGX_EDGER8R) test/enclave/$(Test_Enclave_Name).edl
+test/enclave/$(Test_Enclave_Name)_t.c: \
+        $(SGX_EDGER8R) test/enclave/$(Test_Enclave_Name).edl
 	@cd test/enclave && $(SGX_EDGER8R) --trusted $(Test_Enclave_Name).edl \
 	                                   --search-path $(SGX_SDK)/include \
 	                                   --search-path . \
@@ -693,7 +694,8 @@ test: test-all
 .PHONY: test-clean
 
 test-clean:
-	@rm -f test/enclave/*_t.h test/enclave/*_u.h test/enclave/*_t.c test/enclave/*_u.c
+	@rm -f test/enclave/*_t.h test/enclave/*_u.h
+	@rm -f test/enclave/*_t.c test/enclave/*_u.c
 	@rm -f test/enclave/*.o test/enclave/*.so
 	@rm -rf test/bin
 	@rm -f $(Enclave_Signing_Key)
@@ -701,7 +703,8 @@ test-clean:
 
 ######## Demo Enclave Objects ########
 
-demo/enclave/$(Demo_Enclave_Name)_t.c: $(SGX_EDGER8R) demo/enclave/$(Demo_Enclave_Name).edl
+demo/enclave/$(Demo_Enclave_Name)_t.c: \
+        $(SGX_EDGER8R) demo/enclave/$(Demo_Enclave_Name).edl
 	@cd demo/enclave && $(SGX_EDGER8R) --trusted $(Demo_Enclave_Name).edl \
 	                                   --search-path $(SGX_SDK)/include \
 	                                   --search-path . \
@@ -713,11 +716,13 @@ demo/enclave/$(Demo_Enclave_Name)_t.o: demo/enclave/$(Demo_Enclave_Name)_t.c
 	@$(CC) $(Demo_Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-demo/enclave/kmyth_enclave_memory_util.o: trusted/src/util/kmyth_enclave_memory_util.c 
+demo/enclave/kmyth_enclave_memory_util.o: \
+        trusted/src/util/kmyth_enclave_memory_util.c 
 	@$(CC) $(Demo_Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-demo/enclave/sgx_retrieve_key_impl.o: trusted/src/wrapper/sgx_retrieve_key_impl.c 
+demo/enclave/sgx_retrieve_key_impl.o: \
+        trusted/src/wrapper/sgx_retrieve_key_impl.c 
 	@$(CC) $(Demo_Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -729,7 +734,8 @@ demo/enclave/kmyth_enclave_unseal.o: trusted/src/ecall/kmyth_enclave_unseal.cpp
 	@$(CXX) $(Demo_Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-demo/enclave/kmyth_enclave_retrieve_key.o: trusted/src/ecall/kmyth_enclave_retrieve_key.cpp
+demo/enclave/kmyth_enclave_retrieve_key.o: \
+        trusted/src/ecall/kmyth_enclave_retrieve_key.cpp
 	@$(CXX) $(Demo_Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -761,7 +767,8 @@ demo/enclave/$(Demo_Enclave_Lib): demo/enclave/$(Demo_Enclave_Name)_t.o \
 	@$(CXX) $^ -o $@ $(Demo_Enclave_Link_Flags)
 	@echo "LINK =>  $@"
 
-demo/enclave/$(Demo_Signed_Enclave_Name): demo/enclave/$(Demo_Enclave_Lib) $(Enclave_Signing_Key)
+demo/enclave/$(Demo_Signed_Enclave_Name): \
+        demo/enclave/$(Demo_Enclave_Lib) $(Enclave_Signing_Key)
 	@$(SGX_ENCLAVE_SIGNER) sign -key $(Enclave_Signing_Key) \
 	                            -enclave demo/enclave/$(Demo_Enclave_Lib) \
 	                            -out $@ \
@@ -782,7 +789,8 @@ demo/data/server_cert.pem: demo/data/gen_test_keys_certs.bash
 .PHONY: demo-clean
 
 demo-clean:
-	@rm -f demo/enclave/*_u.h demo/enclave/*_t.h demo/enclave/*_u.c demo/enclave/*_t.c
+	@rm -f demo/enclave/*_u.h demo/enclave/*_t.h
+	@rm -f demo/enclave/*_u.c demo/enclave/*_t.c
 	@rm -f demo/enclave/*.o demo/enclave/*.so
 	@rm -f demo/data/*.pem
 	@rm -rf demo/obj

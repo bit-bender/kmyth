@@ -35,17 +35,17 @@ void demo_ecdh_cleanup(ECDHPeer * ecdhconn)
   }
 
   // clear and/or free memory for loaded keys and certs
-  if (ecdhconn->config.local_sign_key != NULL)
+  if (ecdhconn->config.local_private_key != NULL)
   {
-    EVP_PKEY_free(ecdhconn->config.local_sign_key);
+    EVP_PKEY_free(ecdhconn->config.local_private_key);
   }
-  if (ecdhconn->config.local_sign_cert != NULL)
+  if (ecdhconn->config.local_cert != NULL)
   {
-    X509_free(ecdhconn->config.local_sign_cert);
+    X509_free(ecdhconn->config.local_cert);
   }
-  if (ecdhconn->config.remote_sign_cert != NULL)
+  if (ecdhconn->config.remote_cert != NULL)
   {
-    X509_free(ecdhconn->config.remote_sign_cert);
+    X509_free(ecdhconn->config.remote_cert);
   }
 
   // clear/free memory for 'ephemeral' session key agreement contributions
@@ -131,32 +131,30 @@ int demo_ecdh_check_options(ECDHConfig * ecdhopts)
 {
   bool err = false;
 
-  if (ecdhopts->local_sign_key == NULL)
+  if (ecdhopts->local_private_key_path == NULL)
   {
-    fprintf(stderr, "local signature key path argument (-r) is required\n");
+    fprintf(stderr, "ECDH local private key file path (-k) option required\n");
     err = true;
   }
-  if (ecdhopts->local_sign_cert == NULL)
+  
+  if (ecdhopts->local_cert_path == NULL)
   {
-    fprintf(stderr, "local cert path argument (-c) is required\n");
+    fprintf(stderr, "ECDH local cert file path (-l) option required\n");
     err = true;
   }
-  if (ecdhopts->remote_sign_cert == NULL)
-  {
-    fprintf(stderr, "remote cert path argument (-u) is required\n");
-    err = true;
-  }
+  
   if (ecdhopts->port == NULL)
   {
-    fprintf(stderr, "port number argument (-p) is required\n");
+    fprintf(stderr, "proxy's ECDH server port number (-p) option required\n");
     err = true;
   }
-  if (ecdhopts->isClient && ecdhopts->ip == NULL)
+  
+  if (ecdhopts->remote_cert_path == NULL)
   {
-    fprintf(stderr, "IP address argument (-i) is required in client mode\n");
+    fprintf(stderr, "ECDH remote cert file path (-r) option required\n");
     err = true;
   }
-
+  
   if (err)
   {
     kmyth_log(LOG_ERR, "invalid command-line arguments");
@@ -167,98 +165,102 @@ int demo_ecdh_check_options(ECDHConfig * ecdhopts)
 }
 
 /*****************************************************************************
- * demo_ecdh_load_local_sign_key()
+ * demo_ecdh_load_local_private_key()
  ****************************************************************************/
-int demo_ecdh_load_local_sign_key(ECDHPeer * ecdhconn,
-                                  char * local_sign_key_path)
+int demo_ecdh_load_local_private_key(ECDHPeer * ecdhconn)
 {
-  // read  elliptic curve private signing key from file (.pem formatted)
-  BIO *priv_key_bio = BIO_new_file(local_sign_key_path, "r");
+  // read  elliptic curve private key from file (.pem formatted)
+  BIO *priv_bio = BIO_new_file(ecdhconn->config.local_private_key_path, "r");
 
-  if (priv_key_bio == NULL)
+  if (priv_bio == NULL)
   {
     kmyth_log(LOG_ERR, "BIO association with file (%s) failed",
-                       local_sign_key_path);
+                       ecdhconn->config.local_private_key_path);
     return EXIT_FAILURE;
   }
 
-  ecdhconn->config.local_sign_key = PEM_read_bio_PrivateKey(priv_key_bio,
-                                                            NULL, 0, NULL);
+  ecdhconn->config.local_private_key = PEM_read_bio_PrivateKey(priv_bio,
+                                                               NULL,
+                                                               0,
+                                                               NULL);
 
-  BIO_free(priv_key_bio);
-  priv_key_bio = NULL;
+  BIO_free(priv_bio);
+  priv_bio = NULL;
 
-  if (!ecdhconn->config.local_sign_key)
+  if (!ecdhconn->config.local_private_key)
   {
     kmyth_log(LOG_ERR, "elliptic curve key PEM file (%s) read failed",
-                       local_sign_key_path);
+                       ecdhconn->config.local_private_key_path);
     return EXIT_FAILURE;
   }
 
   kmyth_log(LOG_DEBUG, "loaded local private signing key from file (%s)",
-                       local_sign_key_path);
+                       ecdhconn->config.local_private_key_path);
 
   return EXIT_SUCCESS;
 }
 
 /*****************************************************************************
- * demo_ecdh_load_local_sign_cert()
+ * demo_ecdh_load_local_cert()
  ****************************************************************************/
-int demo_ecdh_load_local_sign_cert(ECDHPeer * ecdhconn,
-                                   char * local_sign_cert_path)
+int demo_ecdh_load_local_cert(ECDHPeer * ecdhconn)
 {
   // read  elliptic curve private signing key from file (.pem formatted)
-  BIO *cert_bio = BIO_new_file(local_sign_cert_path, "r");
+  BIO *cert_bio = BIO_new_file(ecdhconn->config.local_cert_path, "r");
 
   if (cert_bio == NULL)
   {
     kmyth_log(LOG_ERR, "BIO association with file (%s) failed",
-                       local_sign_cert_path);
+                       ecdhconn->config.local_cert_path);
     return EXIT_FAILURE;
   }
 
-  ecdhconn->config.local_sign_cert = PEM_read_bio_X509(cert_bio,
-                                                       NULL, 0, NULL);
+  ecdhconn->config.local_cert = PEM_read_bio_X509(cert_bio,
+                                                  NULL,
+                                                  0,
+                                                  NULL);
   BIO_free(cert_bio);
   cert_bio = NULL;
-  if (!ecdhconn->config.local_sign_cert)
+  if (!ecdhconn->config.local_cert)
   {
     kmyth_log(LOG_ERR, "elliptic curve X509 PEM file (%s) read failed",
-                       local_sign_cert_path);
+                       ecdhconn->config.local_cert_path);
     return EXIT_FAILURE;
   }
 
   kmyth_log(LOG_DEBUG, "loaded local certificate from file (%s)",
-                       local_sign_cert_path);
+                       ecdhconn->config.local_cert_path);
+
   return EXIT_SUCCESS;
 }
 
 /*****************************************************************************
- * demo_ecdh_load_remote_sign_cert()
+ * demo_ecdh_load_remote_cert()
  ****************************************************************************/
-int demo_ecdh_load_remote_sign_cert(ECDHPeer * ecdhconn,
-                                    char * remote_sign_cert_path)
+int demo_ecdh_load_remote_cert(ECDHPeer * ecdhconn)
 {
   // read remote certificate (X509) from file (.pem formatted)
-  BIO *pub_cert_bio = BIO_new_file(remote_sign_cert_path, "r");
-  if (pub_cert_bio == NULL)
+  BIO *cert_bio = BIO_new_file(ecdhconn->config.remote_cert_path, "r");
+  if (cert_bio == NULL)
   {
     kmyth_log(LOG_ERR, "BIO association with file (%s) failed",
-                       remote_sign_cert_path);
+                       ecdhconn->config.remote_cert_path);
     return EXIT_FAILURE;
   }
-  ecdhconn->config.remote_sign_cert = PEM_read_bio_X509(pub_cert_bio,
-                                                        NULL, 0, NULL);
-  BIO_free(pub_cert_bio);
-  pub_cert_bio = NULL;
-  if (ecdhconn->config.remote_sign_cert == NULL)
+  ecdhconn->config.remote_cert = PEM_read_bio_X509(cert_bio,
+                                                   NULL,
+                                                   0,
+                                                   NULL);
+  BIO_free(cert_bio);
+  cert_bio = NULL;
+  if (ecdhconn->config.remote_cert == NULL)
   {
     kmyth_log(LOG_ERR, "EC Certificate PEM file (%s) read failed",
-                       remote_sign_cert_path);
+                       ecdhconn->config.remote_cert_path);
     return EXIT_FAILURE;
   }
   kmyth_log(LOG_DEBUG, "loaded remote certificate from file (%s)",
-                       remote_sign_cert_path);
+                       ecdhconn->config.remote_cert_path);
 
   return EXIT_SUCCESS;
 }
@@ -371,7 +373,7 @@ int demo_ecdh_recv_client_hello_msg(ECDHPeer * ecdh_svr)
 
   // validate 'Client Hello' message and parse out message fields
   ret = parse_client_hello_msg(msg,
-                               ecdh_svr->config.remote_sign_cert,
+                               ecdh_svr->config.remote_cert,
                                &(ecdh_svr->session.remote_eph_pubkey));
   if (ret != EXIT_SUCCESS)
   {
@@ -394,8 +396,8 @@ int demo_ecdh_send_server_hello_msg(ECDHPeer * ecdh_svr)
   ECDHMessage *msg = &(ecdh_svr->session.proto.server_hello);
 
   // compose 'Server Hello' message
-  ret = compose_server_hello_msg(ecdh_svr->config.local_sign_key,
-                                 ecdh_svr->config.local_sign_cert,
+  ret = compose_server_hello_msg(ecdh_svr->config.local_private_key,
+                                 ecdh_svr->config.local_cert,
                                  ecdh_svr->session.remote_eph_pubkey,
                                  ecdh_svr->session.local_eph_keypair,
                                  msg);
@@ -514,7 +516,7 @@ int demo_ecdh_recv_key_request_msg(ECDHPeer * ecdh_svr)
   // decrypt, validate message, and parse out 'Key Request' fields
   ByteBuffer *kmip_req = &(ecdh_svr->session.proto.kmip_request);
 
-  ret = parse_key_request_msg(ecdh_svr->config.remote_sign_cert,
+  ret = parse_key_request_msg(ecdh_svr->config.remote_cert,
                               &(ecdh_svr->session.request_symkey),
                               msg,
                               ecdh_svr->session.local_eph_keypair,
