@@ -284,19 +284,19 @@ static int proxy_create_ecdh_server(TLSProxy * proxy)
     return EXIT_FAILURE;
   }
 
-  kmyth_log(LOG_DEBUG, "setting up server socket on port %s",
+  kmyth_log(LOG_DEBUG, "setting up ECDH server socket on port %s",
                        ecdh_svr->config.port);
   if (setup_server_socket(ecdh_svr->config.port,
                          &(ecdh_svr->config.listen_socket_fd)))
   {
-    kmyth_log(LOG_ERR, "failed to setup server socket on port %s",
+    kmyth_log(LOG_ERR, "failed to ECDH setup server socket on port %s",
                        ecdh_svr->config.port);
     return EXIT_FAILURE;
   }
 
   if (listen(ecdh_svr->config.listen_socket_fd, 1))
   {
-    kmyth_log(LOG_ERR, "server socket listen (for client connection) failed");
+    kmyth_log(LOG_ERR, "ECDH server socket listen failed");
     close(ecdh_svr->config.listen_socket_fd);
     return EXIT_FAILURE;
   }

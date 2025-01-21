@@ -47,7 +47,7 @@ int setup_client_socket(const char *node, const char *service, int *socket_fd)
     if (*socket_fd == -1)
     {
       // Socket creation failed, try the next address.
-      kmyth_log(LOG_DEBUG, "socket creation failed (%s)", ipstr);
+      kmyth_log(LOG_DEBUG, "socket creation failed (remote host: %s)", ipstr);
       continue;
     }
     kmyth_log(LOG_DEBUG, "socket creation succeeded (%s)", ipstr);

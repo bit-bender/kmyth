@@ -57,7 +57,7 @@ int enclave_retrieve_key(EVP_PKEY * client_sign_privkey,
     EVP_PKEY_free(enclave_ephemeral_keypair);
     return EXIT_FAILURE;
   }
-  kmyth_sgx_log(LOG_DEBUG, "created client-side ephemeral key pair");
+  kmyth_sgx_log(LOG_DEBUG, "created client-side ECDH ephemeral key pair");
 
   // compose 'Client Hello' message (client to server key agreement 'request')
   ECDHMessage client_hello_msg = { { 0 }, NULL };

@@ -27,8 +27,8 @@ int setup_socket_ocall(const char *server_host,
   }
 
   // connect to server
-  kmyth_log(LOG_DEBUG, "Setting up client socket, remote host: %s, port: %s",
-            server_host, server_port);
+  kmyth_log(LOG_DEBUG, "Setting up socket - remote host: %s, port: %s",
+                       server_host, server_port);
 
   if (setup_client_socket(server_host, server_port, socket_fd))
   {
