@@ -222,8 +222,8 @@ int main(int argc, char **argv)
     }
   }
 
-  set_applog_severity_threshold(LOG_INFO);
-
+  set_applog_severity_threshold(LOG_DEBUG);
+  
   // Create server socket
   kmyth_log(LOG_INFO, "Setting up server socket");
 

@@ -236,7 +236,7 @@ int main(int argc, char **argv)
     }
   }
 
-  set_applog_severity_threshold(LOG_INFO);
+  set_applog_severity_threshold(LOG_DEBUG);
 
   // Create socket to B
   int socket_fd = -1;

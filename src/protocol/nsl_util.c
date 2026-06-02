@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <fcntl.h>
 
 #include <openssl/ec.h>
 #include <openssl/evp.h>
@@ -738,34 +739,29 @@ int generate_session_key(unsigned char *nonce_a,
 //
 // generate_nonce()
 //
-int generate_nonce(size_t desired_min_nonce_len,
+int generate_nonce(size_t desired_nonce_len,
                    unsigned char **nonce,
                    size_t *nonce_len)
 {
-  size_t size = 1;
-
-  while ((size * sizeof(int)) < desired_min_nonce_len)
-  {
-    size += 1;
+  int urand_fd = open("/dev/urandom", O_RDONLY);
+  if (urand_fd < 0) {
+    kmyth_log(LOG_ERR, "Error opening /dev/urandom");
+    return 1;
   }
 
-  *nonce_len = size * sizeof(int);
-  unsigned int *buffer = calloc(size, sizeof(int));
+  uint8_t *buffer = calloc(desired_nonce_len, 1);
 
   if (NULL == buffer)
   {
     kmyth_log(LOG_ERR, "Failed to allocated the nonce buffer.");
     return 1;
   }
-  unsigned int *index = buffer;
 
-  for (size_t i = 0; i < size; i++)
-  {
-    *index = (unsigned int)rand();
-    index += 1;
-  }
+  read(urand_fd, buffer, desired_nonce_len);
 
   *nonce = (unsigned char *) buffer;
+  *nonce_len = desired_nonce_len;
+
   return 0;
 }
 
@@ -792,6 +788,15 @@ int negotiate_client_session_key(int socket_fd,
   {
     kmyth_log(LOG_ERR, "Failed to generate a nonce.");
     return 1;
+  }
+
+  // DEBUG
+  kmyth_log(LOG_DEBUG, "Generated nonce A: %zd bytes", nonce_a_len);
+  for (size_t i = 0; i < nonce_a_len; i++) {
+    printf("%02x ", nonce_a[i]);
+    if ((i + 1) % 16 == 0) {
+      printf("\n");
+    }
   }
 
   // Conduct NSL to obtain nonce B
@@ -981,6 +986,15 @@ int negotiate_server_session_key(int socket_fd,
   {
     kmyth_log(LOG_ERR, "Failed to generate a nonce.");
     return 1;
+  }
+
+  // DEBUG
+  kmyth_log(LOG_DEBUG, "Generated nonce B: %zd bytes", nonce_b_len);
+  for (size_t i = 0; i < nonce_b_len; i++) {
+    printf("%02x ", nonce_b[i]);
+    if ((i + 1) % 16 == 0) {
+      printf("\n");
+    }
   }
 
   // Conduct NSL to obtain nonce A

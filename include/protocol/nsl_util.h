@@ -279,7 +279,7 @@ int generate_session_key(unsigned char *nonce_a,
  * This function generates a random nonce value.
  * </pre>
  *
- * @param[in]  desired_min_nonce_len  minimum length (in bytes) of the desired nonce
+ * @param[in]  desired_nonce_len      length (in bytes) of the desired nonce
  *
  * @param[out] nonce                  the nonce
  *
@@ -287,7 +287,7 @@ int generate_session_key(unsigned char *nonce_a,
  *
  * @return 0 on success, 1 on error
  */
-int generate_nonce(size_t desired_min_nonce_len,
+int generate_nonce(size_t desired_nonce_len,
                    unsigned char **nonce,
                    size_t *nonce_len);
 
