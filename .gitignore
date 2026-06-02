@@ -9,5 +9,6 @@
 
 *.pem
 
+/bin/
 test/data/*
 .vscode
