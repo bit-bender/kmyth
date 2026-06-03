@@ -298,17 +298,17 @@ int generate_nonce(size_t desired_nonce_len,
  *
  * @param[in]  socket_fd        the open socket file descriptor
  *
- * @param[in]  public_key_ctx   the EVP_PKEY_CTX containing the remote public key
+ * @param[in]  public_key_ctx   the EVP_PKEY_CTX containing the remote (server) public key
  *
- * @param[in]  private_key_ctx  the EVP_PKEY_CTX containing the local private key
+ * @param[in]  private_key_ctx  the EVP_PKEY_CTX containing the local (client) private key
  *
- * @param[in]  id               the local ID
+ * @param[in]  client_id        the local (client) ID
+ * 
+ * @param[in]  client_id_len    length (in bytes) of the local (client) ID
  *
- * @param[in]  id_len           length (in bytes) of the local ID
+ * @param[in]  expected_server_id      the expected remote (server) ID
  *
- * @param[in]  expected_id      the expected ID
- *
- * @param[in]  expected_id_len  length (in bytes) of the expected ID
+ * @param[in]  expected_server_id_len  length (in bytes) of the expected remote (server) ID
  *
  * @param[out] session_key      the session key
  *
@@ -319,10 +319,10 @@ int generate_nonce(size_t desired_nonce_len,
 int negotiate_client_session_key(int socket_fd,
                                  EVP_PKEY_CTX * public_key_ctx,
                                  EVP_PKEY_CTX * private_key_ctx,
-                                 unsigned char *id,
-                                 size_t id_len,
-                                 unsigned char *expected_id,
-                                 size_t expected_id_len,
+                                 unsigned char *client_id,
+                                 size_t client_id_len,
+                                 unsigned char *expected_server_id,
+                                 size_t expected_server_id_len,
                                  unsigned char **session_key,
                                  size_t *session_key_len);
 
@@ -337,9 +337,9 @@ int negotiate_client_session_key(int socket_fd,
  *
  * @param[in]  private_key_ctx  the EVP_PKEY_CTX containing the local private key
  *
- * @param[in]  id               the local ID
+ * @param[in]  server_id        the local (server) ID
  *
- * @param[in]  id_len           length (in bytes) of the local ID
+ * @param[in]  server_id_len    length (in bytes) of the local (server) ID
  * 
  * @param[out] session_key      the session key
  *
@@ -350,8 +350,8 @@ int negotiate_client_session_key(int socket_fd,
 int negotiate_server_session_key(int socket_fd,
                                  EVP_PKEY_CTX * public_key_ctx,
                                  EVP_PKEY_CTX * private_key_ctx,
-                                 unsigned char *id,
-                                 size_t id_len,
+                                 unsigned char *server_id,
+                                 size_t server_id_len,
                                  unsigned char **session_key,
                                  size_t *session_key_len);
 #endif

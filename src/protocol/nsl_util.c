@@ -664,15 +664,17 @@ int generate_session_key(unsigned char *nonce_a,
 
   // Setup the message digest context.
   const EVP_MD *type = EVP_shake256();
-
   if (NULL == type)
   {
     kmyth_log(LOG_ERR, "Failed to obtain the SHAKE-256 MD.");
     kmyth_clear_and_free(nonces, nonces_len);
     return 1;
   }
-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
 
+  // Set session key length to match digest length of hash
+
+  // Create new message digest context
+  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
   if (NULL == ctx)
   {
     kmyth_log(LOG_ERR, "Failed to create the MD context.");
@@ -680,8 +682,7 @@ int generate_session_key(unsigned char *nonce_a,
     return 1;
   }
 
-  // Initialize the context and load in the nonces to generate the session
-  // key.
+  // Initialize the context and load in nonces
   int result = EVP_DigestInit_ex(ctx, type, NULL);
 
   if (0 == result)
@@ -692,6 +693,7 @@ int generate_session_key(unsigned char *nonce_a,
     return 1;
   }
 
+  // Hash loaded value to compute message digest
   result = EVP_DigestUpdate(ctx, nonces, len);
   if (0 == result)
   {
@@ -701,17 +703,18 @@ int generate_session_key(unsigned char *nonce_a,
     return 1;
   }
 
-  *key = calloc(EVP_MAX_MD_SIZE, sizeof(unsigned char));
+  // Allocate session key buffer
+  *key_len = (size_t) EVP_MD_get_size(type);
+  *key = calloc(*key_len, sizeof(unsigned char));
   if (NULL == key)
   {
-    kmyth_log(LOG_ERR, "Failed to allocated the key buffer.");
+    kmyth_log(LOG_ERR, "Failed to allocate the key buffer.");
     EVP_MD_CTX_free(ctx);
     kmyth_clear_and_free(nonces, nonces_len);
     return 1;
   }
-  *key_len = EVP_MAX_MD_SIZE * sizeof(unsigned char);
 
-  result = EVP_DigestFinal_ex(ctx, *key, (unsigned int *) key_len);
+  result = EVP_DigestFinalXOF(ctx, *key, (unsigned int) *key_len);
   if (0 == result)
   {
     kmyth_log(LOG_ERR, "Failed to finalize the MD context.");
@@ -732,6 +735,16 @@ int generate_session_key(unsigned char *nonce_a,
     kmyth_clear_and_free(*key, *key_len);
     return 1;
   }
+  
+  char key_str[(2 * *key_len) + 1];
+  char *key_str_ptr = key_str;
+  for (size_t i = 0; i < *key_len; i++) {
+    key_str_ptr += sprintf(key_str_ptr, "%02X", (*key)[i]);
+  }
+  kmyth_log(LOG_DEBUG,
+            "Generated session key (%zd bytes): %s",
+            *key_len,
+            key_str);
 
   return 0;
 }
@@ -771,37 +784,38 @@ int generate_nonce(size_t desired_nonce_len,
 int negotiate_client_session_key(int socket_fd,
                                  EVP_PKEY_CTX * public_key_ctx,
                                  EVP_PKEY_CTX * private_key_ctx,
-                                 unsigned char *id,
-                                 size_t id_len,
-                                 unsigned char *expected_id,
-                                 size_t expected_id_len,
+                                 unsigned char *client_id,
+                                 size_t client_id_len,
+                                 unsigned char *expected_server_id,
+                                 size_t expected_server_id_len,
                                  unsigned char **session_key,
                                  size_t *session_key_len)
 {
-  // Generate nonce A
-  unsigned char *nonce_a = NULL;
-  size_t nonce_a_len = 0;
+  // Generate client nonce
+  unsigned char *client_nonce = NULL;
+  size_t client_nonce_len = 0;
 
-  int result = generate_nonce(NSL_NONCE_LEN, &nonce_a, &nonce_a_len);
+  int result = generate_nonce(NSL_NONCE_LEN, &client_nonce, &client_nonce_len);
 
   if (result)
   {
-    kmyth_log(LOG_ERR, "Failed to generate a nonce.");
+    kmyth_log(LOG_ERR, "Failed to generate client nonce.");
     return 1;
   }
 
-  // DEBUG
-  kmyth_log(LOG_DEBUG, "Generated nonce A: %zd bytes", nonce_a_len);
-  for (size_t i = 0; i < nonce_a_len; i++) {
-    printf("%02x ", nonce_a[i]);
-    if ((i + 1) % 16 == 0) {
-      printf("\n");
-    }
+  char client_nonce_str[(2 * client_nonce_len) + 1];
+  char *client_nonce_str_ptr = client_nonce_str;
+  for (size_t i = 0; i < client_nonce_len; i++) {
+    client_nonce_str_ptr += sprintf(client_nonce_str_ptr, "%02X", client_nonce[i]);
   }
+  kmyth_log(LOG_DEBUG,
+            "Generated client nonce (%zd bytes): %s",
+            client_nonce_len,
+            client_nonce_str);
 
-  // Conduct NSL to obtain nonce B
-  unsigned char *nonce_b = NULL;
-  size_t nonce_b_len = 0;
+  // Conduct NSL to obtain server nonce
+  unsigned char *server_nonce = NULL;
+  size_t server_nonce_len = 0;
 
   unsigned char *request = NULL;
   size_t request_len = 0;
@@ -811,20 +825,23 @@ int negotiate_client_session_key(int socket_fd,
   if (NULL == response)
   {
     kmyth_log(LOG_ERR, "Failed to allocate the response buffer.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     return 1;
   }
   size_t response_len = 8192 * sizeof(unsigned char);
 
-  kmyth_log(LOG_DEBUG, "Sending nonce A: %zd bytes", nonce_a_len);
+  kmyth_log(LOG_DEBUG,
+            "Sending client nonce (%zd bytes) to server.",
+            client_nonce_len);
 
   result = build_nonce_request(public_key_ctx,
-                               nonce_a, nonce_a_len,
-                               id, id_len, &request, &request_len);
+                               client_nonce, client_nonce_len,
+                               client_id, client_id_len,
+                               &request, &request_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to build the nonce request.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
@@ -832,19 +849,19 @@ int negotiate_client_session_key(int socket_fd,
   if (write(socket_fd, request, request_len) != request_len)
   {
     kmyth_log(LOG_ERR, "Failed to fully send nonce request message.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
 
-  kmyth_log(LOG_DEBUG, "Successfully sent nonce A.");
+  kmyth_log(LOG_DEBUG, "Successfully sent client nonce to server.");
 
   ssize_t read_result = read(socket_fd, response, response_len);
 
   if (read_result <= 0)
   {
     kmyth_log(LOG_ERR, "Failed to read the nonce response message.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
@@ -855,93 +872,106 @@ int negotiate_client_session_key(int socket_fd,
   request = NULL;
   request_len = 0;
 
-  unsigned char *received_nonce_a = NULL;
-  size_t received_nonce_a_len = 0;
+  unsigned char *rcvd_client_nonce = NULL;
+  size_t rcvd_client_nonce_len = 0;
 
-  unsigned char *received_id = NULL;
-  size_t received_id_len = 0;
+  unsigned char *rcvd_server_id = NULL;
+  size_t rcvd_server_id_len = 0;
 
   // read_result can safely be cast to a size_t since we've already
   // dealt with the possibility it's negative
   result = parse_nonce_response(private_key_ctx,
                                 response, (size_t)read_result,
-                                &received_nonce_a, &received_nonce_a_len,
-                                &nonce_b, &nonce_b_len,
-                                &received_id, &received_id_len);
+                                &rcvd_client_nonce, &rcvd_client_nonce_len,
+                                &server_nonce, &server_nonce_len,
+                                &rcvd_server_id, &rcvd_server_id_len);
   kmyth_clear_and_free(response, response_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to parse the nonce response.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     return 1;
   }
 
-  kmyth_log(LOG_DEBUG, "Received nonce A: %zd bytes", received_nonce_a_len);
-  kmyth_log(LOG_DEBUG, "Received nonce B: %zd bytes", nonce_b_len);
-  kmyth_log(LOG_DEBUG, "Received ID: %.*s", received_id_len, received_id);
+  char rcvd_client_nonce_str[(2 * rcvd_client_nonce_len) + 1];
+  char *rcvd_client_nonce_str_ptr = rcvd_client_nonce_str;
+  for (size_t i = 0; i < rcvd_client_nonce_len; i++) {
+    rcvd_client_nonce_str_ptr += sprintf(rcvd_client_nonce_str_ptr, "%02X", rcvd_client_nonce[i]);
+  }
+  kmyth_log(LOG_DEBUG, "Received client nonce (%zd bytes): %s",
+                       rcvd_client_nonce_len, rcvd_client_nonce_str);
 
-  if (nonce_a_len != received_nonce_a_len)
+  char server_nonce_str[(2 * server_nonce_len) + 1];
+  char *server_nonce_str_ptr = &server_nonce_str[0];
+  for (size_t i = 0; i < server_nonce_len; i++) {
+    server_nonce_str_ptr += sprintf(server_nonce_str_ptr, "%02X", server_nonce[i]);
+  }
+  kmyth_log(LOG_DEBUG, "Received server nonce (%zd bytes): %s",
+                       server_nonce_len, server_nonce_str);
+  
+  kmyth_log(LOG_DEBUG, "Received server ID: %.*s", rcvd_server_id_len, rcvd_server_id);
+
+  if (client_nonce_len != rcvd_client_nonce_len)
   {
-    kmyth_log(LOG_ERR, "The received nonce A length is invalid.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_id, received_id_len);
+    kmyth_log(LOG_ERR, "The received client nonce length is invalid.");
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(rcvd_client_nonce, rcvd_client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(rcvd_server_id, rcvd_server_id_len);
     return 1;
   }
-  if (nonce_b_len != nonce_a_len)
+  if (server_nonce_len != client_nonce_len)
   {
-    kmyth_log(LOG_ERR, "The received nonce B length is invalid.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_id, received_id_len);
+    kmyth_log(LOG_ERR, "The received server nonce length (%zd) is invalid.", server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(rcvd_client_nonce, rcvd_client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(rcvd_server_id, rcvd_server_id_len);
     return 1;
   }
-  if (strncmp
-      ((const char *) nonce_a, (const char *) received_nonce_a,
-       nonce_a_len) != 0)
+  if (strncmp((const char *) client_nonce,
+              (const char *) rcvd_client_nonce,
+              client_nonce_len) != 0)
   {
-    kmyth_log(LOG_ERR, "The received nonce A is invalid.");
-    kmyth_log(LOG_ERR, "Expected nonce A: %zd bytes", nonce_a_len);
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_id, received_id_len);
+    kmyth_log(LOG_ERR, "The received client nonce is invalid.");
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(rcvd_client_nonce, rcvd_client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(rcvd_server_id, rcvd_server_id_len);
     return 1;
   }
 
-  kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+  kmyth_clear_and_free(rcvd_client_nonce, rcvd_client_nonce_len);
 
-  if (strncmp
-      ((const char *) received_id, (const char *) expected_id,
-       expected_id_len) != 0)
+  if (strncmp((const char *) rcvd_server_id,
+              (const char *) expected_server_id,
+              expected_server_id_len) != 0)
   {
-    kmyth_log(LOG_ERR, "The received ID is invalid.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_id, received_id_len);
+    kmyth_log(LOG_ERR, "The received server ID (%s) is invalid.", rcvd_server_id);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(rcvd_server_id, rcvd_server_id_len);
     return 1;
   }
 
-  kmyth_clear_and_free(received_id, received_id_len);
+  kmyth_clear_and_free(rcvd_server_id, rcvd_server_id_len);
 
   result = build_nonce_confirmation(public_key_ctx,
-                                    nonce_b, nonce_b_len,
+                                    server_nonce, server_nonce_len,
                                     &request, &request_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to build the nonce confirmation.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
     return 1;
   }
 
   if (write(socket_fd, request, request_len) != request_len)
   {
     kmyth_log(LOG_ERR, "Failed to fully send the nonce confirmation.");
-    kmyth_clear_and_free(nonce_a, nonce_a_len);
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
     kmyth_clear_and_free(request, request_len);
     return 1;
   }
@@ -951,11 +981,11 @@ int negotiate_client_session_key(int socket_fd,
   request_len = 0;
 
   // Use nonces to generate shared session key S
-  result = generate_session_key(nonce_a, nonce_a_len,
-                                nonce_b, nonce_b_len,
+  result = generate_session_key(client_nonce, client_nonce_len,
+                                server_nonce, server_nonce_len,
                                 session_key, session_key_len);
-  kmyth_clear_and_free(nonce_a, nonce_a_len);
-  kmyth_clear_and_free(nonce_b, nonce_b_len);
+  kmyth_clear_and_free(client_nonce, client_nonce_len);
+  kmyth_clear_and_free(server_nonce, server_nonce_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to generate the session key.");
@@ -971,16 +1001,16 @@ int negotiate_client_session_key(int socket_fd,
 int negotiate_server_session_key(int socket_fd,
                                  EVP_PKEY_CTX * public_key_ctx,
                                  EVP_PKEY_CTX * private_key_ctx,
-                                 unsigned char *id,
-                                 size_t id_len,
+                                 unsigned char *server_id,
+                                 size_t server_id_len,
                                  unsigned char **session_key,
                                  size_t *session_key_len)
 {
-  // Generate nonce B
-  unsigned char *nonce_b = NULL;
-  size_t nonce_b_len = 0;
+  // Generate server nonce
+  unsigned char *server_nonce = NULL;
+  size_t server_nonce_len = 0;
 
-  int result = generate_nonce(NSL_NONCE_LEN, &nonce_b, &nonce_b_len);
+  int result = generate_nonce(NSL_NONCE_LEN, &server_nonce, &server_nonce_len);
 
   if (result)
   {
@@ -988,22 +1018,23 @@ int negotiate_server_session_key(int socket_fd,
     return 1;
   }
 
-  // DEBUG
-  kmyth_log(LOG_DEBUG, "Generated nonce B: %zd bytes", nonce_b_len);
-  for (size_t i = 0; i < nonce_b_len; i++) {
-    printf("%02x ", nonce_b[i]);
-    if ((i + 1) % 16 == 0) {
-      printf("\n");
-    }
+  char server_nonce_str[(2 * server_nonce_len) + 1];
+  char *server_nonce_str_ptr = server_nonce_str;
+  for (size_t i = 0; i < server_nonce_len; i++) {
+    server_nonce_str_ptr += sprintf(server_nonce_str_ptr, "%02X", server_nonce[i]);
   }
+  kmyth_log(LOG_DEBUG,
+            "Generated client nonce (%zd bytes): %s",
+            server_nonce_len,
+            server_nonce_str);
 
-  // Conduct NSL to obtain nonce A
+  // Conduct NSL to obtain client nonce
   unsigned char *response = calloc(8192, sizeof(unsigned char));
 
   if (NULL == response)
   {
     kmyth_log(LOG_ERR, "Failed to allocate the response buffer.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
     return 1;
   }
   size_t response_len = 8192;
@@ -1012,44 +1043,55 @@ int negotiate_server_session_key(int socket_fd,
 
   if (read_result <= 0)
   {
-    kmyth_log(LOG_ERR, "Failed to receive the nonce request.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
+    kmyth_log(LOG_ERR, "Failed to receive the nonce request from client.");
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
 
-  unsigned char *received_nonce_a = NULL;
-  size_t received_nonce_a_len = 0;
+  unsigned char *client_nonce = NULL;
+  size_t client_nonce_len = 0;
 
-  unsigned char *received_id = NULL;
-  size_t received_id_len = 0;
+  unsigned char *client_id = NULL;
+  size_t client_id_len = 0;
 
   // read_result can safely be cast to size_t because we've already
   // dealt with the case that it's negative.
   result = parse_nonce_request(private_key_ctx,
                                response, (size_t)read_result,
-                               &received_nonce_a, &received_nonce_a_len,
-                               &received_id, &received_id_len);
+                               &client_nonce, &client_nonce_len,
+                               &client_id, &client_id_len);
 
-  kmyth_log(LOG_DEBUG, "Received nonce A: %zd bytes", received_nonce_a_len);
-  kmyth_log(LOG_DEBUG, "Received ID: %.*s", received_id_len, received_id);
+  char client_nonce_str[(2 * client_nonce_len) + 1];
+  char *client_nonce_str_ptr = client_nonce_str;
+  for (size_t i = 0; i < client_nonce_len; i++) {
+    client_nonce_str_ptr += sprintf(client_nonce_str_ptr,
+                                    "%02X", client_nonce[i]);
+  }
+  kmyth_log(LOG_DEBUG,
+            "Received client nonce (%zd bytes): %s",
+            client_nonce_len,
+            client_nonce_str);
 
-  kmyth_clear_and_free(received_id, received_id_len);
+  kmyth_log(LOG_DEBUG, "Received client ID: %.*s", client_id_len, client_id);
+
+  kmyth_clear_and_free(client_id, client_id_len);
   kmyth_clear_and_free(response, response_len);
   response = NULL;
   response_len = 0;
 
-  kmyth_log(LOG_DEBUG, "Sending nonce B: %zd", nonce_b_len);
+  kmyth_log(LOG_DEBUG, "Sending server nonce to client.");
 
   result = build_nonce_response(public_key_ctx,
-                                received_nonce_a, received_nonce_a_len,
-                                nonce_b, nonce_b_len,
-                                id, id_len, &response, &response_len);
+                                client_nonce, client_nonce_len,
+                                server_nonce, server_nonce_len,
+                                server_id, server_id_len,
+                                &response, &response_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to build the nonce response.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     return 1;
   }
 
@@ -1057,9 +1099,9 @@ int negotiate_server_session_key(int socket_fd,
 
   if (response_len != send_result)
   {
-    kmyth_log(LOG_ERR, "Failed to fully send the nonce response.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+    kmyth_log(LOG_ERR, "Error sending the nonce response.");
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
@@ -1070,7 +1112,8 @@ int negotiate_server_session_key(int socket_fd,
   if (NULL == response)
   {
     kmyth_log(LOG_ERR, "Failed to re-allocate the response buffer.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     return 1;
   }
   response_len = 8192 * sizeof(unsigned char);
@@ -1079,61 +1122,71 @@ int negotiate_server_session_key(int socket_fd,
   if (read_result <= 0)
   {
     kmyth_log(LOG_ERR, "Failed to receive the nonce confirmation.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     kmyth_clear_and_free(response, response_len);
     return 1;
   }
 
-  unsigned char *received_nonce_b = NULL;
-  size_t received_nonce_b_len = 0;
+  unsigned char *rcvd_server_nonce = NULL;
+  size_t rcvd_server_nonce_len = 0;
 
   // read_result can safely be cast to a size_t because we've already
   // dealt with the case it's negative.
   result = parse_nonce_confirmation(private_key_ctx,
                                     response,
                                     (size_t) read_result,
-                                    &received_nonce_b,
-                                    &received_nonce_b_len);
+                                    &rcvd_server_nonce,
+                                    &rcvd_server_nonce_len);
   kmyth_clear_and_free(response, response_len);
   if (result)
   {
-    kmyth_log(LOG_ERR, "Failed to parse the nonce confirmation.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+    kmyth_log(LOG_ERR, "Failed to parse the nonce confirmation message.");
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
     return 1;
   }
-  if (nonce_b_len != received_nonce_b_len)
+  if (server_nonce_len != rcvd_server_nonce_len)
   {
-    kmyth_log(LOG_ERR, "The received nonce B length is invalid.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
-    kmyth_clear_and_free(received_nonce_b, received_nonce_b_len);
+    kmyth_log(LOG_ERR, "Server nonce received from client has invalid size.");
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(rcvd_server_nonce, rcvd_server_nonce_len);
     return 1;
   }
-  if (strncmp
-      ((const char *) nonce_b, (const char *) received_nonce_b,
-       nonce_b_len) != 0)
+  if (strncmp((const char *) server_nonce,
+              (const char *) rcvd_server_nonce,
+              server_nonce_len) != 0)
   {
-    kmyth_log(LOG_ERR, "The received nonce B is invalid.");
-    kmyth_clear_and_free(nonce_b, nonce_b_len);
-    kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
-    kmyth_clear_and_free(received_nonce_b, received_nonce_b_len);
+    kmyth_log(LOG_ERR, "Invalid server nonce received from client.");
+    kmyth_clear_and_free(server_nonce, server_nonce_len);
+    kmyth_clear_and_free(client_nonce, client_nonce_len);
+    kmyth_clear_and_free(rcvd_server_nonce, rcvd_server_nonce_len);
     return 1;
   }
 
-  kmyth_clear_and_free(received_nonce_b, received_nonce_b_len);
-  kmyth_log(LOG_DEBUG, "Received nonce B: %zd bytes", nonce_b_len);
+  char rcvd_server_nonce_str[(2 * rcvd_server_nonce_len) + 1];
+  char *rcvd_server_nonce_str_ptr = rcvd_server_nonce_str;
+  for (size_t i = 0; i < rcvd_server_nonce_len; i++) {
+    rcvd_server_nonce_str_ptr += sprintf(rcvd_server_nonce_str_ptr,
+                                    "%02X", rcvd_server_nonce[i]);
+  }
+  kmyth_log(LOG_DEBUG,
+            "Received server nonce (%zd bytes): %s",
+            rcvd_server_nonce_len,
+            rcvd_server_nonce_str);
+  kmyth_clear_and_free(rcvd_server_nonce, rcvd_server_nonce_len);
+
 
   // Use nonces to generate shared session key S
-  result = generate_session_key(received_nonce_a,
-                                received_nonce_a_len,
-                                nonce_b,
-                                nonce_b_len,
+  result = generate_session_key(client_nonce,
+                                client_nonce_len,
+                                server_nonce,
+                                server_nonce_len,
                                 session_key,
                                 session_key_len);
-  kmyth_clear_and_free(nonce_b, nonce_b_len);
-  kmyth_clear_and_free(received_nonce_a, received_nonce_a_len);
+  kmyth_clear_and_free(server_nonce, server_nonce_len);
+  kmyth_clear_and_free(client_nonce, client_nonce_len);
   if (result)
   {
     kmyth_log(LOG_ERR, "Failed to generate the session key.");
