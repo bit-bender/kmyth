@@ -21,6 +21,7 @@
 #include "memory_util.h"
 
 #define NSL_NONCE_LEN 32
+#define NSL_ID_MAX_LEN 128
 #define NSL_SESSION_KEY_LEN 32
 
 //
@@ -200,40 +201,89 @@ int parse_nonce_request(EVP_PKEY_CTX * ctx,
     return 1;
   }
   unsigned char *index = message;
-
-  // Parse out the nonce.
+  size_t bytes_remaining = message_len;
+  
+  // Parse out and validate the nonce size.
+  if (bytes_remaining < sizeof(size_t)) {
+    kmyth_log(LOG_ERR, "Nonce request message buffer too small.");
+    kmyth_clear_and_free(message, message_len);
+    return 1;
+  }
   memcpy(nonce_len, index, sizeof(size_t));
+  if (*nonce_len != NSL_NONCE_LEN) {
+    kmyth_log(LOG_ERR, "Parsed invalid nonce length.");
+    *nonce_len = 0;
+    kmyth_clear_and_free(message, message_len);
+    return 1;
+  }
   index += sizeof(size_t);
+  bytes_remaining -= sizeof(size_t);
+  
+  // Allocate buffer for nonce bytes.
   *nonce = calloc(*nonce_len, sizeof(unsigned char));
   if (*nonce == NULL)
   {
-    kmyth_log(LOG_ERR, "Failed to allocate the nonce buffer.");
-
+    kmyth_log(LOG_ERR, "Failed to allocate nonce buffer.");
     *nonce_len = 0;
-
     kmyth_clear_and_free(message, message_len);
+    return 1;
+  }
 
+  // Parse nonce bytes
+  if (bytes_remaining < *nonce_len) {
+    kmyth_log(LOG_ERR, "Nonce request message buffer too small.");
+    *nonce_len = 0;
+    kmyth_clear_and_free(message, message_len);
     return 1;
   }
   memcpy(*nonce, index, *nonce_len);
   index += *nonce_len;
+  bytes_remaining -= *nonce_len;
 
-  // Parse out the ID.
+  // Parse out and validate ID size.
+  if (bytes_remaining < sizeof(size_t)) {
+    kmyth_log(LOG_ERR, "Nonce request message buffer too small.");
+    kmyth_clear_and_free(*nonce, *nonce_len);
+    *nonce = NULL;
+    *nonce_len = 0;
+    kmyth_clear_and_free(message, message_len);
+    return 1;
+  }
   memcpy(id_len, index, sizeof(size_t));
+  if (*id_len > NSL_ID_MAX_LEN) {
+    kmyth_log(LOG_ERR, "Parsed invalid ID length.");
+    kmyth_clear_and_free(*nonce, *nonce_len);
+    *nonce_len = 0;
+    kmyth_clear_and_free(message, message_len);
+    return 1;
+  }
   index += sizeof(size_t);
+  bytes_remaining -= sizeof(size_t);
+  
+  // Allocate buffer for ID bytes
   *id = calloc(*id_len, sizeof(unsigned char));
   if (*id == NULL)
   {
     kmyth_log(LOG_ERR, "Failed to allocate the ID buffer.");
-
     kmyth_clear_and_free(*nonce, *nonce_len);
     *nonce = NULL;
     *nonce_len = 0;
-
     *id_len = 0;
-
     kmyth_clear_and_free(message, message_len);
 
+    return 1;
+  }
+
+  // Parse ID bytes
+  if (bytes_remaining != *id_len) {
+    kmyth_log(LOG_ERR, "Nonce request message buffer size error.");
+    kmyth_clear_and_free(*nonce, *nonce_len);
+    *nonce = NULL;
+    *nonce_len = 0;
+    kmyth_clear_and_free(*id, *id_len);
+    *id = NULL;
+    *id_len = 0;
+    kmyth_clear_and_free(message, message_len);
     return 1;
   }
   memcpy(*id, index, *id_len);
