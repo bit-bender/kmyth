@@ -673,6 +673,7 @@ clean: clean-backups
 	rm -rf $(TEST_OBJ_DIR)
 	rm -rf $(UTILS_OBJ_DIR)
 	rm -rf $(LOGGER_OBJ_DIR)
+	rm -f test/data/nsl*.pem
 
 .PHONY: clean-backups
 clean-backups:
