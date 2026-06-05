@@ -305,6 +305,16 @@ nsl:	clean-backups \
 	$(BIN_DIR)/nsl-client \
 	$(BIN_DIR)/nsl-server
 
+.PHONY: nsl-test
+nsl-test: nsl
+	rm -f test/data/nsl*.pem
+	openssl genrsa -out test/data/nslclient_priv.pem 2048
+	openssl genrsa -out test/data/nslserver_priv.pem 2048
+	openssl rsa -in test/data/nslclient_priv.pem -pubout -out test/data/nslclient_pub.pem
+	openssl rsa -in test/data/nslserver_priv.pem -pubout -out test/data/nslserver_pub.pem
+	./bin/nsl-server -r test/data/nslserver_priv.pem -p 12345 -u test/data/nslclient_pub.pem --verbose &
+	./bin/nsl-client -r test/data/nslclient_priv.pem -i localhost -p 12345 -u test/data/nslserver_pub.pem --verbose
+
 .PHONY: utils-lib
 utils-lib: clean-backups $(LIB_DIR)/libkmyth-utils.so
 
