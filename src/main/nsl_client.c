@@ -27,7 +27,9 @@ static void usage(const char *prog)
           "  -i or --ip    The IP address or hostname of the server.\n"
           "  -p or --port  The port number to connect to.\n"
           "  -u or --pub  Path to the file containing the server's public key.\n"
-          "Misc --\n" "  -h or --help  Help (displays this usage).\n\n", prog);
+          "Misc --\n"
+          "  -h or --help  Help (displays this usage).\n"
+          "  -v or --verbose  Verbose mode provides detailed debug/demo info.\n\n", prog);
 }
 
 int check_string_arg(const char *arg,
@@ -51,6 +53,7 @@ const struct option longopts[] = {
   {"pub", required_argument, 0, 'u'},
   // Misc
   {"help", no_argument, 0, 'h'},
+  {"verbose", no_argument, 0, 'v'},
   {0, 0, 0, 0}
 };
 
@@ -202,12 +205,15 @@ int main(int argc, char **argv)
   char *port = NULL;
   char *cert = NULL;
 
+  // Set default (non-verbose) display threshold 
+  set_applog_severity_threshold(LOG_INFO);
+
   int options;
   int option_index;
 
   while ((options = getopt_long(argc,
                                 argv,
-                                "r:i:p:u:h",
+                                "r:i:p:u:h:v",
                                 longopts,
                                 &option_index)) != -1)
   {
@@ -231,12 +237,13 @@ int main(int argc, char **argv)
     case 'h':
       usage(argv[0]);
       return 0;
+    case 'v':
+      set_applog_severity_threshold(LOG_DEBUG);
+      break;
     default:
       return 1;
     }
   }
-
-  set_applog_severity_threshold(LOG_DEBUG);
 
   // Create socket to B
   int socket_fd = -1;
@@ -319,6 +326,7 @@ int main(int argc, char **argv)
   kmyth_log(LOG_INFO, "Received symmetric key: 0x%02X..%02X",
             retrieved_key[0], retrieved_key[retrieved_key_len - 1]);
 
+  kmyth_clear_and_free(session_key, session_key_len);
   kmyth_clear_and_free(retrieved_key, (size_t) retrieved_key_len);
   close(socket_fd);
 

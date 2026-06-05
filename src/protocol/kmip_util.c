@@ -97,7 +97,7 @@ int build_kmip_get_request(KMIP * ctx,
   // something odd.
   *request_len = (size_t) (ctx->index - ctx->buffer);
   *request = (uint8_t *) calloc(*request_len, sizeof(unsigned char));
-  if (request == NULL)
+  if (*request == NULL)
   {
     kmyth_log(LOG_ERR, "Failed to allocate the KMIP request buffer.");
     kmyth_clear_and_free(encoding, buffer_total_size);
@@ -265,7 +265,7 @@ int build_kmip_get_response(KMIP * ctx,
   // something odd.
   *response_len = (size_t) (ctx->index - ctx->buffer);
   *response = (uint8_t *) calloc(*response_len, sizeof(unsigned char));
-  if (response == NULL)
+  if (*response == NULL)
   {
     kmyth_log(LOG_ERR, "Failed to allocate the KMIP response buffer.");
     kmyth_clear_and_free(encoding, buffer_total_size);
